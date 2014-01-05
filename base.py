@@ -87,6 +87,7 @@ class File(Base):
     name = Column(String, nullable=False)
     hash = Column(String)
     mtime = Column(DateTime)
+    size = Column(Integer)
     host_id = Column(Integer, ForeignKey('hosts.id'), nullable=False)
     host = relationship('Host', cascade='all')
 
