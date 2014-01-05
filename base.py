@@ -38,15 +38,21 @@ class Folder(Base):
     parent_id = Column(Integer, ForeignKey('folders.id'))
     parent = relationship('Folder', remote_side=[id, host_id], backref='folders')
 
-    def __str__(self):
+    @property
+    def path(self):
         if None is self.parent:
             return '/'
-        return '%s%s/' % (self.parent, self.name)
+        return '%s%s/' % (self.parent.path, self.name)
+
+    @property
+    def uri(self):
+        return '%s::%s' % (self.host, self.path)
+
+    def __str__(self):
+        return self.uri
 
     def __repr__(self):
-        if None is self.parent:
-            return '<Folder(%s::/)>' % self.host
-        return '<Folder(%s::%s%s/)>' % (self.host, self.parent, self.name)
+        return '<Folder(%s)>' % self.uri
 
 
 class File(Base):
@@ -56,9 +62,19 @@ class File(Base):
     name = Column(String)
     hash = Column(String)
     mtime = Column(DateTime)
+    host_id = Column(Integer, ForeignKey('hosts.id'))
+    host = relationship('Host')
 
     folder_id = Column(Integer, ForeignKey('folders.id'))
     folder = relationship('Folder', backref=backref('files'))
 
+    @property
+    def path(self):
+        return '%s%s/' % (self.folder.path, self.name)
+
+    @property
+    def uri(self):
+        return '%s::%s' % (self.host, self.path)
+
     def __repr__(self):
-        return '<File(%s::%s%s)>' % (self.folder.host, self.folder, self.name)
+        return '<File(%s)>' % self.uri
