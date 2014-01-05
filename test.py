@@ -1,3 +1,5 @@
+from sqlalchemy.exc import IntegrityError
+
 __author__ = 'konsti'
 
 import unittest
@@ -19,14 +21,18 @@ class FileTest(unittest.TestCase):
     def test_create(self):
         session = Session()
         host = Host(name='localhost')
-        print(repr(host))
+        session.add(host)
         root = host.new_root()
+        self.assertRaises(RuntimeError, host.new_root)
         dev = root.add_folder('dev')
         file = dev.add_file('null')
-        session.add(file)
         file2 = session.query(File).filter_by(folder=dev, name='null').first()
+
         self.assertEqual(file, file2)
         session.commit()
+
+        dev.add_file('null')
+        self.assertRaises(IntegrityError, session.commit)
 
 
 if __name__ == '__main__':
