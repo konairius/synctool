@@ -15,7 +15,7 @@ class Host(Base):
     __tablename__ = 'hosts'
 
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
+    name = Column(String, nullable=False, unique=True)
 
     root = relationship('Folder', primaryjoin="and_(Host.id==Folder.host_id, Folder.name=='<root>')", uselist=False,
                         cascade='all')
@@ -28,14 +28,15 @@ class Host(Base):
 
     def new_root(self):
         """
-        @returns the new folder
+        returns the new folder
         Creates a new root folder for this host,
         it will raise an Runtime exception if root already exists.
         """
 
         if not self.root is None:
             raise RuntimeError('%r already has a root' % self)
-        return Folder(name='<root>', host=self)
+        self.root = Folder(name='<root>', host=self)
+        return self.root
 
 
 class Folder(Base):
@@ -78,6 +79,9 @@ class Folder(Base):
 
 class File(Base):
     __tablename__ = 'files'
+    __table_args__ = (
+        UniqueConstraint('folder_id', 'name'),
+    )
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
