@@ -104,3 +104,36 @@ class File(Base):
 
     def __repr__(self):
         return '<File(%s)>' % self.uri
+
+
+class Job(Base):
+    __tablename__ = 'jobs'
+
+    id = Column(Integer, primary_key=True)
+
+    source_id = Column(Integer, ForeignKey('folders.id'), nullable=False)
+    source = relationship('Folder', foreign_keys=[source_id])
+
+    target_id = Column(Integer, ForeignKey('folders.id'), nullable=False)
+    target = relationship('Folder', foreign_keys=[target_id])
+
+    queue_id = Column(Integer, ForeignKey('queues.id'), nullable=False)
+    queue = relationship('Queue', backref=backref('jobs'))
+
+    def __str__(self):
+        return '<Job(%s ==> %s)>' % (self.source.uri, self.target.uri)
+
+    def __repr__(self):
+        return '<Job(%s ==> %s)(id=%s, queue_id=%s)>' % (self.source.uri, self.target.uri, self.id, self.queue_id)
+
+
+class Queue(Base):
+    __tablename__ = 'queues'
+
+    id = Column(Integer, primary_key=True)
+
+    host_id = Column(Integer, ForeignKey('hosts.id'), nullable=False)
+    host = relationship('Host', backref=backref('queues'))
+
+    def __repr__(self):
+        return '<Queue(id=%s, host_id=%s)>' % (self.id, self.host_id)
