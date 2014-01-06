@@ -1,3 +1,5 @@
+from scannerDeamon import scan
+
 __author__ = 'konsti'
 
 import logging
@@ -21,20 +23,31 @@ class FileTest(unittest.TestCase):
     def setUp(self):
         Base.metadata.drop_all(database)
         Base.metadata.create_all(database)
+        self.session = Session()
+        set_session(self.session)
 
     def test_create(self):
-        session = Session()
-        set_session(session)
         host = Host.by_name(name='localhost')
         root = host.root
         self.assertIsNotNone(root)
         dev = root.add_folder('dev')
-        file = dev.add_file('null')
+        file = dev.add_file(name='null', fhash=1, mtime=2.0, size=3)
         file2 = File.by_id(file.id)
-
         self.assertEqual(file, file2)
 
-        self.assertRaises(IntegrityError, dev.add_file, 'null')
+        file.delete()
+
+        file = dev.add_file(name='null', fhash=1, mtime=2.0, size=3)
+
+        self.assertRaises(IntegrityError, dev.add_file, 'null', 1, 2.0, 3)
+
+    def test_real(self):
+        host = Host.by_name('konsti-desktop')
+        code = host.root.add_folder('home').add_folder('konsti').add_folder('Code')
+        scan(code)
+
+    def tearDown(self):
+        self.session.close_all()
 
 
 class TestJobs(unittest.TestCase):
