@@ -172,4 +172,7 @@ class Queue(Base, DBObject):
         return '<Queue(id=%s, host_id=%s)>' % (self.id, self.host_id)
 
     def add_job(self, source, target):
-        return Job(queue_id=self.id, source=source, target=target)
+        job = Job(queue_id=self.id, source=source, target=target)
+        session().add(job)
+        session().flush()
+        return job
