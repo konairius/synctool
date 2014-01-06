@@ -1,11 +1,14 @@
-from sqlalchemy.exc import IntegrityError
-
 __author__ = 'konsti'
+
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
 
 import unittest
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import IntegrityError
 
 from base import File, Host, Base
 
