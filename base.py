@@ -5,7 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, UniqueConstraint, create_engine
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, UniqueConstraint, create_engine, Float
 from sqlalchemy.orm import relationship, backref, sessionmaker
 
 Base = declarative_base()
@@ -18,6 +18,7 @@ def session():
     if global_session is None:
         logger.warning('Database Session not set: Creating Dummy Session!')
         engine = create_engine('sqlite:///:memory:', echo=False)
+        #engine = create_engine('sqlite:///test.sqlite', echo=False)
         Base.metadata.create_all(engine)
         s = sessionmaker(bind=engine)
         global_session = s()
@@ -45,7 +46,14 @@ class DBObject(object):
         obj = session().query(cls).filter_by(id=obj_id).first()
         if None is obj:
             raise RuntimeError('%s has no object with id %s' % (cls.__name__, obj_id))
+        logger.debug('Restored Object from Database: %r' % obj)
         return obj
+
+    def delete(self):
+
+        session().delete(self)
+        session().flush()
+        logger.debug('Deleted Object: %r' % self)
 
 
 class Host(Base, DBObject):
@@ -69,6 +77,9 @@ class Host(Base, DBObject):
             obj = Host(name=name)
             session().add(obj)
             session().flush()
+            logger.debug('Created new Object: %r' % obj)
+        else:
+            logger.debug('Restored Object from Database: %r' % obj)
         return obj
 
     def __str__(self):
@@ -119,13 +130,25 @@ class Folder(Base, DBObject):
         folder = Folder(parent=self, name=name, host=self.host)
         session().add(folder)
         session().flush()
+        logger.debug('Created new Object: %r' % folder)
         return folder
 
-    def add_file(self, name):
-        file = File(folder=self, name=name, host=self.host)
+    def add_file(self, name, fhash, mtime, size):
+        file = File(folder=self, name=name, hash=fhash, mtime=mtime, size=size, host=self.host)
         session().add(file)
         session().flush()
+        logger.debug('Created new Object: %r' % file)
         return file
+
+    def child_by_name(self, name):
+        obj = session().query(File).filter_by(name=name, folder_id=self.id).first()
+        if None is obj:
+            obj = session().query(Folder).filter_by(name=name, parent_id=self.id).first()
+        if obj is not None:
+            logger.debug('Restored Object from Database: %r' % obj)
+        else:
+            logger.debug('Failed to find object with name: %s' % name)
+        return obj
 
 
 class File(Base, DBObject):
@@ -136,13 +159,13 @@ class File(Base, DBObject):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     hash = Column(String)
-    mtime = Column(DateTime)
+    mtime = Column(Float)
     size = Column(Integer)
     host_id = Column(Integer, ForeignKey('host.id'), nullable=False)
-    host = relationship('Host', cascade='all')
+    host = relationship('Host')
 
     folder_id = Column(Integer, ForeignKey('folder.id'), nullable=False)
-    folder = relationship('Folder', backref=backref('files'), cascade='all')
+    folder = relationship('Folder', backref=backref('files'))
 
     @property
     def path(self):
@@ -184,4 +207,5 @@ class Queue(Base, DBObject):
         job = Job(queue_id=self.id, source=source, target=target)
         session().add(job)
         session().flush()
+        logger.debug('Created new Object: %r' % job)
         return job
