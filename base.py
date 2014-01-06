@@ -5,7 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
-from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, create_engine, Float
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, UniqueConstraint, create_engine
 from sqlalchemy.orm import relationship, backref, sessionmaker
 
 Base = declarative_base()
@@ -150,7 +150,6 @@ class Folder(Base, DBObject):
         else:
             logger.debug('Failed to find object with name: %s' % name)
         return obj
-
 
 class File(Base, DBObject):
     __table_args__ = (
