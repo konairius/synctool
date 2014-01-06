@@ -5,7 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, UniqueConstraint, create_engine, Float
+from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, create_engine, Float
 from sqlalchemy.orm import relationship, backref, sessionmaker
 
 Base = declarative_base()
@@ -35,6 +35,7 @@ class DBObject(object):
     def __init__(self, *args, **kwargs):
         pass
 
+    # noinspection PyMethodParameters
     @declared_attr
     def __tablename__(cls):
         return cls.__name__.lower()

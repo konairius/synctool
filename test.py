@@ -37,11 +37,12 @@ class FileTest(unittest.TestCase):
 
         file.delete()
 
-        file = dev.add_file(name='null', fhash=1, mtime=2.0, size=3)
+        dev.add_file(name='null', fhash=1, mtime=2.0, size=3)
 
         self.assertRaises(IntegrityError, dev.add_file, 'null', 1, 2.0, 3)
 
-    def test_real(self):
+    @staticmethod
+    def test_real():
         host = Host.by_name('konsti-desktop')
         code = host.root.add_folder('home').add_folder('konsti').add_folder('Code')
         scan(code)
