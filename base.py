@@ -40,33 +40,42 @@ class DBObject(object):
 
     id = Column(Integer, primary_key=True)
 
+    @classmethod
+    def by_id(cls, obj_id):
+        obj = session().query(cls).filter_by(id=obj_id).first()
+        if None is obj:
+            raise RuntimeError('%s has no object with id %s' % (cls.__name__, obj_id))
+        return obj
+
 
 class Host(Base, DBObject):
     name = Column(String, nullable=False, unique=True)
 
-    root = relationship('Folder', primaryjoin="and_(Host.id==Folder.host_id, Folder.name=='<root>')", uselist=False,
-                        cascade='all')
+    _root = relationship('Folder', primaryjoin="and_(Host.id==Folder.host_id, Folder.name=='<root>')", uselist=False,
+                         cascade='all')
+
+    @property
+    def root(self):
+        if self._root is None:
+            self._root = Folder(name='<root>', host=self)
+            session().add(self._root)
+            session().flush()
+        return self._root
+
+    @classmethod
+    def by_name(cls, name):
+        obj = session().query(cls).filter_by(name=name).first()
+        if None is obj:
+            obj = Host(name=name)
+            session().add(obj)
+            session().flush()
+        return obj
 
     def __str__(self):
         return self.name
 
     def __repr__(self):
         return '<Host(id=%s, name=%s)>' % (self.id, self.name)
-
-    def new_root(self):
-        """
-        returns the new folder
-        Creates a new root folder for this host,
-        it will raise an Runtime exception if root already exists.
-        """
-
-        if not self.root is None:
-            raise RuntimeError('%r already has a root' % self)
-        root = Folder(name='<root>', host=self)
-        session().add(root)
-        session().flush()
-        self.root = root
-        return self.root
 
     def add_queue(self):
         queue = Queue(host_id=self.id)
@@ -172,4 +181,7 @@ class Queue(Base, DBObject):
         return '<Queue(id=%s, host_id=%s)>' % (self.id, self.host_id)
 
     def add_job(self, source, target):
-        return Job(queue_id=self.id, source=source, target=target)
+        job = Job(queue_id=self.id, source=source, target=target)
+        session().add(job)
+        session().flush()
+        return job

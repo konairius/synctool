@@ -10,7 +10,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import IntegrityError
 
-from base import File, Host, Base, set_session
+from base import File, Host, Base, set_session, Job
 
 #Setup test database
 database = create_engine('sqlite:///test.sqlite', echo=False)
@@ -25,13 +25,12 @@ class FileTest(unittest.TestCase):
     def test_create(self):
         session = Session()
         set_session(session)
-        host = Host(name='localhost')
-        root = host.new_root()
+        host = Host.by_name(name='localhost')
+        root = host.root
         self.assertIsNotNone(root)
-        self.assertRaises(RuntimeError, host.new_root)
         dev = root.add_folder('dev')
         file = dev.add_file('null')
-        file2 = session.query(File).filter_by(folder=dev, name='null').first()
+        file2 = File.by_id(file.id)
 
         self.assertEqual(file, file2)
 
@@ -44,16 +43,17 @@ class TestJobs(unittest.TestCase):
         Base.metadata.create_all(database)
         self.session = Session()
         set_session(self.session)
-        self.host = Host(name='localhost')
-        self.session.add(self.host)
+        self.host = Host.by_name(name='localhost')
         self.session.flush()
         self.queue = self.host.add_queue()
-        self.root = self.host.new_root()
+        self.root = self.host.root
         self.source = self.root.add_folder('source')
         self.target = self.root.add_folder('target')
 
     def test_add_job(self):
         job = self.queue.add_job(source=self.source, target=self.target)
+        job2 = Job.by_id(job.id)
+        self.assertEqual(job, job2)
 
     def tearDown(self):
         self.session.commit()
