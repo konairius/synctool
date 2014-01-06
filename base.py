@@ -24,7 +24,7 @@ class Host(Base):
         return self.name
 
     def __repr__(self):
-        return '<host(%s)>' % self.name
+        return '<Host(id=%s, name=%s)>' % (self.id, self.name)
 
     def new_root(self):
         """
@@ -37,6 +37,9 @@ class Host(Base):
             raise RuntimeError('%r already has a root' % self)
         self.root = Folder(name='<root>', host=self)
         return self.root
+
+    def add_queue(self):
+        return Queue(host_id=self.id)
 
 
 class Folder(Base):
@@ -137,3 +140,6 @@ class Queue(Base):
 
     def __repr__(self):
         return '<Queue(id=%s, host_id=%s)>' % (self.id, self.host_id)
+
+    def add_job(self, source, target):
+        return Job(queue_id=self.id, source=source, target=target)
