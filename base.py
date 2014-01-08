@@ -1,3 +1,7 @@
+# coding=utf-8
+"""
+The Base Module where all Classes used by multiple Daemons are specified
+"""
 import os
 import socket
 
@@ -8,8 +12,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
-from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, create_engine, and_, DateTime
-from sqlalchemy.orm import relationship, backref, sessionmaker
+from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, and_, DateTime
+from sqlalchemy.orm import relationship, backref
 
 Base = declarative_base()
 
@@ -17,24 +21,30 @@ global_session = None
 
 
 def session():
+    """
+    @raise RuntimeError: if no session is set
+    @return: The SQLAlchemy session that is was set by set_session
+    """
     global global_session
     if global_session is None:
-        logger.warning('Database Session not set: Creating Dummy Session!')
-        engine = create_engine('sqlite:///:memory:', echo=False)
-        #engine = create_engine('sqlite:///test.sqlite', echo=False)
-        Base.metadata.create_all(engine)
-        s = sessionmaker(bind=engine)
-        global_session = s()
+        raise RuntimeError('Session was not set')
     return global_session
 
 
 def set_session(new_session):
+    """
+    @param new_session: The SQLAlchemy session that will be used until another one is set
+    """
     logger.info('Database Session set to: %s' % new_session.get_bind())
     global global_session
     global_session = new_session
 
 
 class DBObject(object):
+    """
+    Baseclass for all database Objects
+    """
+
     def __init__(self, *args, **kwargs):
         pass
 
@@ -47,21 +57,38 @@ class DBObject(object):
 
     @classmethod
     def by_id(cls, obj_id):
+        """
+        @param obj_id: id in the database table
+        @return: the Object
+        @raise AttributeError: if the object was not found
+        """
         obj = session().query(cls).filter_by(id=obj_id).first()
         if None is obj:
-            raise RuntimeError('%s has no object with id %s' % (cls.__name__, obj_id))
+            raise AttributeError('%s has no object with id %s' % (cls.__name__, obj_id))
         logger.debug('Restored Object from Database: %r' % obj)
         return obj
 
     def delete(self):
+        """
+        removes the object from the database
+        """
         session().delete(self)
         session().flush()
         logger.debug('Deleted Object: %r' % self)
 
 
 class FilesystemObject(DBObject):
+    """
+    Baseclass for Filesystem Objects(Folder, File)
+    """
+
     @classmethod
     def by_uri(cls, uri):
+        """
+        @param uri: <hostname>::<path>
+        @return: The demanded object
+        @raise AttributeError: if the uri is invalid
+        """
         if not '::' in uri:
             raise AttributeError('%s is not a valid URI' % uri)
         hostname, path = uri.split(sep='::', maxsplit=1)
@@ -72,18 +99,28 @@ class FilesystemObject(DBObject):
 
 
 class Host(Base, DBObject):
+    """
+    Database representation of a host
+    """
     name = Column(String, nullable=False, unique=True)
 
     roots = relationship('Folder', primaryjoin="and_(Host.id==Folder.host_id, Folder.parent_id==None)")
 
     @property
     def is_local(self):
+        """
+        @return: True if the hostname is the local one
+        """
         if socket.gethostname() != self.name:
             return False
         return True
 
     @classmethod
     def by_name(cls, name):
+        """
+        @param name: the hostname you're looking for
+        @return: the host you're looking for
+        """
         obj = session().query(cls).filter_by(name=name).first()
         if None is obj:
             obj = Host(name=name)
@@ -95,6 +132,13 @@ class Host(Base, DBObject):
         return obj
 
     def descendant_by_path(self, path):
+        """
+        This will try to find the root closets to the target,
+        if it didn't find a valid root, it will try to create one,
+        witch will fail if path is not local.
+        @param path: the path you're looking for
+        @return: the FilesystemObject you're looking for
+        """
         best = None
         best_score = 0
         for root in self.roots:
@@ -123,14 +167,12 @@ class Host(Base, DBObject):
     def __repr__(self):
         return '<Host(id=%s, name=%s)>' % (self.id, self.name)
 
-    def add_queue(self):
-        queue = Queue(host_id=self.id)
-        session().add(queue)
-        session().flush()
-
-        return queue
-
     def add_root(self, path):
+        """
+        @param path: The path of the now root
+        @return: The New created root(Folder)
+        @raise AttributeError: self is not the local host, or the root already exists
+        """
         if not self.is_local:
             raise AttributeError('New roots must be declared on the Host in question.')
 
@@ -151,6 +193,9 @@ class Host(Base, DBObject):
 
 
 class Folder(Base, FilesystemObject):
+    """
+    Represents a Folder, Surprise
+    """
     __table_args__ = (
         UniqueConstraint('parent_id', 'host_id', 'name'),
     )
@@ -166,13 +211,19 @@ class Folder(Base, FilesystemObject):
 
     @property
     def path(self):
+        """
+        @return: the path, honorees the local path separator
+        """
         if None is self.parent:
             return self.name
         return '%s%s%s' % (self.parent.path, self.name, os.sep)
 
     @property
     def uri(self):
-        return '%s::%s' % (self.host, self.path)
+        """
+        @return:the uri(<hostname>::<path>
+        """
+        return '%s::%s' % (self.host.name, self.path)
 
     def __str__(self):
         return self.uri
@@ -181,6 +232,11 @@ class Folder(Base, FilesystemObject):
         return '<Folder(%s)>' % self.uri
 
     def add_folder(self, name):
+        """
+        Creates a Folder as child of the object
+        @param name: the name of the Folder
+        @return: the new created Folder
+        """
         folder = Folder(parent=self, name=name, host=self.host)
         session().add(folder)
         session().flush()
@@ -188,6 +244,14 @@ class Folder(Base, FilesystemObject):
         return folder
 
     def add_file(self, name, fhash, mtime, size):
+        """
+        Creates a File as child of the object
+        @param size: Integer in Byte
+        @param mtime: datetime.datetime
+        @param fhash: hexdigested md5 hash
+        @param name: the name of the File
+        @return: the new created File
+        """
         file = File(folder=self, name=name, hash=fhash, mtime=mtime, size=size, host=self.host)
         session().add(file)
         session().flush()
@@ -195,6 +259,10 @@ class Folder(Base, FilesystemObject):
         return file
 
     def child_by_name(self, name):
+        """
+        @param name: the name
+        @return: The File or folder
+        """
         obj = session().query(File).filter(and_(File.name == name, File.folder_id == self.id)).first()
         if None is obj:
             obj = session().query(Folder).filter(and_(Folder.name == name, Folder.parent_id == self.id)).first()
@@ -206,6 +274,9 @@ class Folder(Base, FilesystemObject):
 
 
 class File(Base, FilesystemObject):
+    """
+    Represents a File
+    """
     __table_args__ = (
         UniqueConstraint('folder_id', 'host_id', 'name'),
     )
@@ -223,46 +294,20 @@ class File(Base, FilesystemObject):
 
     @property
     def path(self):
+        """
+        @return: the path, honorees the local path separator
+        """
         return '%s%s' % (self.folder.path, self.name)
 
     @property
     def uri(self):
+        """
+        @return:the uri(<hostname>::<path>
+        """
         return '%s::%s' % (self.host, self.path)
 
     def __repr__(self):
         return '<File(%s)>' % self.uri
-
-
-class Job(Base, DBObject):
-    source_id = Column(Integer, ForeignKey('folder.id'), nullable=False)
-    source = relationship('Folder', foreign_keys=[source_id])
-
-    target_id = Column(Integer, ForeignKey('folder.id'), nullable=False)
-    target = relationship('Folder', foreign_keys=[target_id])
-
-    queue_id = Column(Integer, ForeignKey('queue.id'), nullable=False)
-    queue = relationship('Queue', backref=backref('jobs'))
-
-    def __str__(self):
-        return '<Job(%s ==> %s)>' % (self.source.uri, self.target.uri)
-
-    def __repr__(self):
-        return '<Job(%s ==> %s)(id=%s, queue_id=%s)>' % (self.source.uri, self.target.uri, self.id, self.queue_id)
-
-
-class Queue(Base, DBObject):
-    host_id = Column(Integer, ForeignKey('host.id'), nullable=False)
-    host = relationship('Host', backref=backref('queues'))
-
-    def __repr__(self):
-        return '<Queue(id=%s, host_id=%s)>' % (self.id, self.host_id)
-
-    def add_job(self, source, target):
-        job = Job(queue_id=self.id, source=source, target=target)
-        session().add(job)
-        session().flush()
-        logger.debug('Created new Object: %r' % job)
-        return job
 
 
 def _matching_chars(left, right):

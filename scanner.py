@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
+# coding=utf-8
+"""
+This is the scanner daemon, basically just a filesystem walker that checks if the database is up-to-date
+and requests others to do the updates if necessary.
+"""
+from _md5 import md5
 
-from _sha1 import sha1
 import argparse
 from datetime import datetime
 from genericpath import isfile, getmtime, getsize, isdir
@@ -41,7 +46,7 @@ def scan(folder):
 
 def _calculate_hash(file_path: str):
     logger.info('Calculating hash for: %s ' % file_path)
-    _hash = sha1()
+    _hash = md5()
     with open(file_path, 'rb') as data:
         for chunk in iter(lambda: data.read(1024 * _hash.block_size), b''):
             _hash.update(chunk)

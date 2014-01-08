@@ -1,3 +1,7 @@
+# coding=utf-8
+"""
+The setup file
+"""
 from distutils.core import setup
 
 setup(
