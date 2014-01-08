@@ -134,13 +134,15 @@ class Host(Base, DBObject):
         if not self.is_local:
             raise AttributeError('New roots must be declared on the Host in question.')
 
+        if not path[-1] == os.sep:
+            path += os.sep
+
         old_root = session().query(Folder).filter(
             and_(Folder.name == path, Folder.parent_id == self.id)).first()
 
         if old_root is not None:
             raise AttributeError('%s already exist' % old_root)
-        if not path.endswith(os.sep):
-            path += os.sep
+
         new_root = Folder(name=path, host=self)
         #self._roots.append(new_root)
         session().add(new_root)
@@ -166,7 +168,7 @@ class Folder(Base, FilesystemObject):
     def path(self):
         if None is self.parent:
             return self.name
-        return '%s%s/' % (self.parent.path, self.name)
+        return '%s%s%s' % (self.parent.path, self.name, os.sep)
 
     @property
     def uri(self):
@@ -221,7 +223,7 @@ class File(Base, FilesystemObject):
 
     @property
     def path(self):
-        return '%s%s/' % (self.folder.path, self.name)
+        return '%s%s' % (self.folder.path, self.name)
 
     @property
     def uri(self):
