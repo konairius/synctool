@@ -200,7 +200,6 @@ class Folder(Base, FilesystemObject):
         UniqueConstraint('parent_id', 'host_id', 'name'),
     )
 
-    id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
 
     host_id = Column(Integer, ForeignKey('host.id'), nullable=False)
@@ -281,7 +280,6 @@ class File(Base, FilesystemObject):
         UniqueConstraint('folder_id', 'host_id', 'name'),
     )
 
-    id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     hash = Column(String)
     mtime = Column(DateTime)
@@ -308,6 +306,41 @@ class File(Base, FilesystemObject):
 
     def __repr__(self):
         return '<File(%s)>' % self.uri
+
+
+class Server(DBObject, Base):
+    """
+    Entry a Server creates when is starts serving a file and removes when it gets accepted
+    """
+    host_id = Column(Integer, ForeignKey('host.id'), nullable=False)
+    host = relationship('Host')
+
+    port = Column(Integer, nullable=False)
+
+    request_id = Column(Integer, ForeignKey('hashrequest.id'), nullable=False)
+    server = relationship('HashRequest', backref=backref('server'))
+
+
+class HashRequest(DBObject, Base):
+    """
+    Represents a hash request, generate by a scanner, it will be fulfilled by a harsher and a server
+    """
+    name = Column(String, nullable=False)
+    mtime = Column(DateTime, nullable=False)
+    size = Column(Integer, nullable=False)
+
+    host_id = Column(Integer, ForeignKey('host.id'), nullable=False)
+    host = relationship('Host')
+
+    folder_id = Column(Integer, ForeignKey('folder.id'), nullable=False)
+    folder = relationship('Folder', backref=backref('files'))
+
+    @property
+    def path(self):
+        """
+        @return: the path, honorees the local path separator
+        """
+        return '%s%s' % (self.folder.path, self.name)
 
 
 def _matching_chars(left, right):

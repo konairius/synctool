@@ -17,7 +17,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import IntegrityError
 
-from base import File, Host, Base, set_session, Job, Folder
+from base import File, Host, Base, set_session, Folder
 
 #Setup test database
 database = create_engine('sqlite:///test.sqlite', echo=False)
@@ -65,31 +65,6 @@ class FileTest(unittest.TestCase):
         self.session.close_all()
 
     #        Base.metadata.drop_all(database)
-
-
-class TestJobs(unittest.TestCase):
-    def setUp(self):
-        Base.metadata.drop_all(database)
-        Base.metadata.create_all(database)
-        self.session = Session()
-        set_session(self.session)
-        self.host = Host.by_name(name=socket.gethostname())
-        self.session.flush()
-        self.queue = self.host.add_queue()
-        self.root = self.host.add_root('/')
-        self.source = self.root.add_folder('source')
-        self.target = self.root.add_folder('target')
-
-    def test_add_job(self):
-        job = self.queue.add_job(source=self.source, target=self.target)
-        job2 = Job.by_id(job.id)
-        self.assertEqual(job, job2)
-
-    def tearDown(self):
-        self.session.commit()
-
-    #       Base.metadata.drop_all(database)
-
 
 if __name__ == '__main__':
     unittest.main()
