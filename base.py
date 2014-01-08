@@ -1,3 +1,6 @@
+import os
+import socket
+
 __author__ = 'konsti'
 
 import logging
@@ -5,7 +8,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, UniqueConstraint, create_engine
+from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, create_engine, Float
 from sqlalchemy.orm import relationship, backref, sessionmaker
 
 Base = declarative_base()
@@ -60,16 +63,13 @@ class DBObject(object):
 class Host(Base, DBObject):
     name = Column(String, nullable=False, unique=True)
 
-    _root = relationship('Folder', primaryjoin="and_(Host.id==Folder.host_id, Folder.name=='<root>')", uselist=False,
-                         cascade='all')
+    roots = relationship('Folder', primaryjoin="and_(Host.id==Folder.host_id, Folder.parent_id==None)")
 
     @property
-    def root(self):
-        if self._root is None:
-            self._root = Folder(name='<root>', host=self)
-            session().add(self._root)
-            session().flush()
-        return self._root
+    def is_local(self):
+        if socket.gethostname() != self.name:
+            return False
+        return True
 
     @classmethod
     def by_name(cls, name):
@@ -82,6 +82,26 @@ class Host(Base, DBObject):
         else:
             logger.debug('Restored Object from Database: %r' % obj)
         return obj
+
+    def folder_by_path(self, path):
+        best = None
+        best_score = 0
+        for root in self.roots:
+            if root.name == path:
+                return root
+            score = _matching_chars(path, root.path)
+            if score > best_score:
+                best = root
+                best_score = score
+
+        rel_path = path.lstrip(best.path)
+        while best.path != path and rel_path is not None:
+            if os.sep in rel_path:
+                name, rel_path = tuple(rel_path.split(sep=os.sep, maxsplit=1))
+            else:
+                name, rel_path = rel_path, None
+            best = best.child_by_name(name)
+        return best
 
     def __str__(self):
         return self.name
@@ -96,10 +116,21 @@ class Host(Base, DBObject):
 
         return queue
 
+    def add_root(self, path):
+        if not self.is_local:
+            raise AttributeError('New roots must be declared on the Host in question.')
+        if not path.endswith(os.sep):
+            path += os.sep
+        new_root = Folder(name=path, host=self)
+        #self._roots.append(new_root)
+        session().add(new_root)
+        session().flush()
+        return new_root
+
 
 class Folder(Base, DBObject):
     __table_args__ = (
-        UniqueConstraint('parent_id', 'name'),
+        UniqueConstraint('parent_id', 'host_id', 'name'),
     )
 
     id = Column(Integer, primary_key=True)
@@ -114,12 +145,20 @@ class Folder(Base, DBObject):
     @property
     def path(self):
         if None is self.parent:
-            return '/'
+            return self.name
         return '%s%s/' % (self.parent.path, self.name)
 
     @property
     def uri(self):
         return '%s::%s' % (self.host, self.path)
+
+    @classmethod
+    def by_uri(cls, uri):
+        if not '::' in uri:
+            raise AttributeError('%s is not a valid URI' % uri)
+        hostname, path = uri.split(sep='::', maxsplit=1)
+        host = Host.by_name(hostname)
+        return host.folder_by_path(path)
 
     def __str__(self):
         return self.uri
@@ -151,9 +190,10 @@ class Folder(Base, DBObject):
             logger.debug('Failed to find object with name: %s' % name)
         return obj
 
+
 class File(Base, DBObject):
     __table_args__ = (
-        UniqueConstraint('folder_id', 'name'),
+        UniqueConstraint('folder_id', 'host_id', 'name'),
     )
 
     id = Column(Integer, primary_key=True)
@@ -166,6 +206,14 @@ class File(Base, DBObject):
 
     folder_id = Column(Integer, ForeignKey('folder.id'), nullable=False)
     folder = relationship('Folder', backref=backref('files'))
+
+    @classmethod
+    def by_uri(cls, uri):
+        if not '::' in uri:
+            raise AttributeError('%s is not a valid URI' % uri)
+        hostname, path = uri.split(sep='::', maxsplit=1)
+        host = Host.by_name(hostname)
+        return host.folder_by_path(path)
 
     @property
     def path(self):
@@ -209,3 +257,16 @@ class Queue(Base, DBObject):
         session().flush()
         logger.debug('Created new Object: %r' % job)
         return job
+
+
+def _matching_chars(left, right):
+    index = 0
+    for char in left:
+        try:
+            if right[index] == char:
+                index += 1
+            else:
+                break
+        except IndexError:
+            break
+    return index
