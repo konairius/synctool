@@ -31,7 +31,7 @@ class FileTest(unittest.TestCase):
     def test_create(self):
         host = Host.by_name(name=socket.gethostname())
         root = host.add_root('/')
-        host.add_root('C://')
+        host.add_root('C:/')
         self.assertIsNotNone(root)
         dev = root.add_folder('dev')
         file = dev.add_file(name='null', fhash=1, mtime=2.0, size=3)
@@ -42,6 +42,8 @@ class FileTest(unittest.TestCase):
         file3 = File.by_uri('%s::/dev/null' % socket.gethostname())
         self.assertEqual(file, file3)
         file.delete()
+        root2 = Folder.by_uri('%s::C:/' % socket.gethostname())
+        self.assertEqual(root2.path, 'C:/')
 
         dev.add_file(name='null', fhash=1, mtime=2.0, size=3)
 
