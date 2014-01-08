@@ -1,3 +1,4 @@
+from datetime import datetime
 import socket
 
 __author__ = 'konsti'
@@ -34,7 +35,7 @@ class FileTest(unittest.TestCase):
         host.add_root('C:/')
         self.assertIsNotNone(root)
         dev = root.add_folder('dev')
-        file = dev.add_file(name='null', fhash=1, mtime=2.0, size=3)
+        file = dev.add_file(name='null', fhash=1, mtime=datetime.now(), size=3)
         file2 = File.by_id(file.id)
         self.assertEqual(file, file2)
         dev2 = Folder.by_uri('%s::/dev' % socket.gethostname())
@@ -45,9 +46,9 @@ class FileTest(unittest.TestCase):
         root2 = Folder.by_uri('%s::C:/' % socket.gethostname())
         self.assertEqual(root2.path, 'C:/')
 
-        dev.add_file(name='null', fhash=1, mtime=2.0, size=3)
+        dev.add_file(name='null', fhash=1, mtime=datetime.now(), size=3)
 
-        self.assertRaises(IntegrityError, dev.add_file, 'null', 1, 2.0, 3)
+        self.assertRaises(IntegrityError, dev.add_file, 'null', 1, datetime.now(), 3)
 
     # @staticmethod
     # def test_real():
