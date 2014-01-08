@@ -60,6 +60,18 @@ class DBObject(object):
         logger.debug('Deleted Object: %r' % self)
 
 
+class FilesystemObject(DBObject):
+    @classmethod
+    def by_uri(cls, uri):
+        if not '::' in uri:
+            raise AttributeError('%s is not a valid URI' % uri)
+        hostname, path = uri.split(sep='::', maxsplit=1)
+        host = Host.by_name(hostname)
+        obj = host.descendant_by_path(path)
+        logger.debug('Restored object from Database: %r' % obj)
+        return obj
+
+
 class Host(Base, DBObject):
     name = Column(String, nullable=False, unique=True)
 
@@ -83,7 +95,7 @@ class Host(Base, DBObject):
             logger.debug('Restored Object from Database: %r' % obj)
         return obj
 
-    def folder_by_path(self, path):
+    def descendant_by_path(self, path):
         best = None
         best_score = 0
         for root in self.roots:
@@ -128,7 +140,7 @@ class Host(Base, DBObject):
         return new_root
 
 
-class Folder(Base, DBObject):
+class Folder(Base, FilesystemObject):
     __table_args__ = (
         UniqueConstraint('parent_id', 'host_id', 'name'),
     )
@@ -151,14 +163,6 @@ class Folder(Base, DBObject):
     @property
     def uri(self):
         return '%s::%s' % (self.host, self.path)
-
-    @classmethod
-    def by_uri(cls, uri):
-        if not '::' in uri:
-            raise AttributeError('%s is not a valid URI' % uri)
-        hostname, path = uri.split(sep='::', maxsplit=1)
-        host = Host.by_name(hostname)
-        return host.folder_by_path(path)
 
     def __str__(self):
         return self.uri
@@ -191,7 +195,7 @@ class Folder(Base, DBObject):
         return obj
 
 
-class File(Base, DBObject):
+class File(Base, FilesystemObject):
     __table_args__ = (
         UniqueConstraint('folder_id', 'host_id', 'name'),
     )
@@ -206,14 +210,6 @@ class File(Base, DBObject):
 
     folder_id = Column(Integer, ForeignKey('folder.id'), nullable=False)
     folder = relationship('Folder', backref=backref('files'))
-
-    @classmethod
-    def by_uri(cls, uri):
-        if not '::' in uri:
-            raise AttributeError('%s is not a valid URI' % uri)
-        hostname, path = uri.split(sep='::', maxsplit=1)
-        host = Host.by_name(hostname)
-        return host.folder_by_path(path)
 
     @property
     def path(self):
