@@ -60,6 +60,8 @@ class FileTest(unittest.TestCase):
         #self.session.commit()
         self.session.close_all()
 
+    #        Base.metadata.drop_all(database)
+
 
 class TestJobs(unittest.TestCase):
     def setUp(self):
@@ -81,6 +83,8 @@ class TestJobs(unittest.TestCase):
 
     def tearDown(self):
         self.session.commit()
+
+    #       Base.metadata.drop_all(database)
 
 
 if __name__ == '__main__':

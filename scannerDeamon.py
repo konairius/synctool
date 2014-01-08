@@ -6,12 +6,13 @@ from datetime import datetime
 from genericpath import isfile, getmtime, getsize, isdir
 from os import listdir
 from os.path import join
+import socket
+from time import sleep
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from base import set_session, Base, Folder
+from base import set_session, Base, Folder, Host
 
 __author__ = 'konsti'
-
 
 import logging
 
@@ -39,7 +40,7 @@ def scan(folder):
 
 
 def _calculate_hash(file_path: str):
-    #logger.info('Analysing file at: ' + file_path)
+    logger.info('Calculating hash for: %s ' % file_path)
     _hash = sha1()
     with open(file_path, 'rb') as data:
         for chunk in iter(lambda: data.read(1024 * _hash.block_size), b''):
@@ -48,12 +49,24 @@ def _calculate_hash(file_path: str):
         return value
 
 
+def daemon(session):
+    set_session(session)
+    host = Host.by_name(socket.gethostname())
+    while True:
+        for root in host.roots:
+            scan(root)
+            session.commit()
+        sleep(3600)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Filesystem Scanner')
     parser.add_argument('-d', '--database', type=str, metavar='"Connection String"', default='sqlite:///:memory:')
-    parser.add_argument('root', type=str, metavar='URI', help='A URI in the format: "<hostname>::<path>"')
+    parser.add_argument('--dir', dest='dirs', type=str, metavar='URI',
+                        help='The directory you want to add to the Database', action='append')
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--create_schema', action='store_true')
+    parser.add_argument('--config_only', action='store_true')
     args = parser.parse_args()
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
@@ -67,8 +80,19 @@ def main():
 
     session = sessionmaker(bind=database)()
     set_session(session)
-    root = Folder.by_uri(args.root)
-    scan(root)
+    print(args.dirs)
+    for root_dir in args.dirs:
+        root_uri = '%s::%s' % (socket.gethostname(), root_dir)
+        print(root_uri)
+        Folder.by_uri(root_uri)
+
+    session.commit()
+
+    if args.config_only:
+        exit(0)
+
+    daemon(session)
+
     session.commit()
     session.close_all()
 
