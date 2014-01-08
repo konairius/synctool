@@ -8,7 +8,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
-from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, create_engine, Float
+from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, create_engine, and_, DateTime
 from sqlalchemy.orm import relationship, backref, sessionmaker
 
 Base = declarative_base()
@@ -54,7 +54,6 @@ class DBObject(object):
         return obj
 
     def delete(self):
-
         session().delete(self)
         session().flush()
         logger.debug('Deleted Object: %r' % self)
@@ -106,8 +105,11 @@ class Host(Base, DBObject):
                 best = root
                 best_score = score
 
+        if best is None:
+            return self.add_root(path=path)
+
         rel_path = path.lstrip(best.path)
-        while best.path != path and rel_path is not None:
+        while best.path != path and rel_path is not None and rel_path != os.sep and rel_path != '':
             if os.sep in rel_path:
                 name, rel_path = tuple(rel_path.split(sep=os.sep, maxsplit=1))
             else:
@@ -131,6 +133,12 @@ class Host(Base, DBObject):
     def add_root(self, path):
         if not self.is_local:
             raise AttributeError('New roots must be declared on the Host in question.')
+
+        old_root = session().query(Folder).filter(
+            and_(Folder.name == path, Folder.parent_id == self.id)).first()
+
+        if old_root is not None:
+            raise AttributeError('%s already exist' % old_root)
         if not path.endswith(os.sep):
             path += os.sep
         new_root = Folder(name=path, host=self)
@@ -185,9 +193,9 @@ class Folder(Base, FilesystemObject):
         return file
 
     def child_by_name(self, name):
-        obj = session().query(File).filter_by(name=name, folder_id=self.id).first()
+        obj = session().query(File).filter(and_(File.name == name, File.folder_id == self.id)).first()
         if None is obj:
-            obj = session().query(Folder).filter_by(name=name, parent_id=self.id).first()
+            obj = session().query(Folder).filter(and_(Folder.name == name, Folder.parent_id == self.id)).first()
         if obj is not None:
             logger.debug('Restored Object from Database: %r' % obj)
         else:
@@ -203,7 +211,7 @@ class File(Base, FilesystemObject):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     hash = Column(String)
-    mtime = Column(Float)
+    mtime = Column(DateTime)
     size = Column(Integer)
     host_id = Column(Integer, ForeignKey('host.id'), nullable=False)
     host = relationship('Host')
