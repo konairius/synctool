@@ -52,8 +52,8 @@ def main():
     parser = argparse.ArgumentParser(description='Filesystem Scanner')
     parser.add_argument('-d', '--database', type=str, metavar='"Connection String"', default='sqlite:///:memory:')
     parser.add_argument('root', type=str, metavar='URI', help='A URI in the format: "<hostname>::<path>"')
-    parser.add_argument('--debug', action='store_true', default='store_false')
-    parser.add_argument('--create_schema', action='store_true', default='store_false')
+    parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--create_schema', action='store_true')
     args = parser.parse_args()
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
