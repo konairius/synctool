@@ -12,7 +12,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
-from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, and_, DateTime
+from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, and_, DateTime, Boolean, BigInteger
 from sqlalchemy.orm import relationship, backref
 
 Base = declarative_base()
@@ -327,9 +327,9 @@ class File(Base, FilesystemObject):
     #id is the same in baseclass but for some reason strange things are happening, so we need this
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
-    hash = Column(String)
-    mtime = Column(DateTime)
-    size = Column(Integer)
+    hash = Column(String, nullable=False)
+    mtime = Column(DateTime, nullable=False)
+    size = Column(BigInteger, nullable=False)
     host_id = Column(Integer, ForeignKey('host.id'), nullable=False)
     host = relationship('Host')
 
@@ -362,7 +362,7 @@ class Server(Base, DBObject):
     port = Column(Integer, nullable=False)
 
     request_id = Column(Integer, ForeignKey('hashrequest.id'), nullable=False)
-    request = relationship('HashRequest', backref=backref('server'))
+    request = relationship('HashRequest', backref=backref('server', uselist=False))
 
     def __repr__(self):
         return '<Server(ip=%s, port=%s, request_id=%s)>' % (self.ip, self.port, self.request_id)
@@ -375,13 +375,18 @@ class HashRequest(Base, DBObject):
 
     name = Column(String, nullable=False)
     mtime = Column(DateTime, nullable=False)
-    size = Column(Integer, nullable=False)
+    size = Column(BigInteger, nullable=False)
 
     host_id = Column(Integer, ForeignKey('host.id'), nullable=False)
     host = relationship('Host', backref=backref('requests'))
 
     folder_id = Column(Integer, ForeignKey('folder.id'), nullable=False)
     folder = relationship('Folder')
+
+    locked = Column(Boolean, default=False)
+
+    def __repr__(self):
+        return '<HashRequest(id=%s, host_id=%s, locked=%s)>' % (self.id, self.host_id, self.locked)
 
     @property
     def path(self):

@@ -27,11 +27,13 @@ class TCPRequestHandler(socketserver.StreamRequestHandler):
         """
         Called by super
         """
+        logger.info('Serving Request from %s:%s' % self.client_address)
         server_id = int(self.rfile.readline().strip())
         server = Server.by_id(server_id)
         with open(server.request.path, 'rb') as data:
             for chunk in iter(lambda: data.read(2 ** 14), b''):
                 self.request.sendall(chunk)
+        self.request.close()
 
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
@@ -91,7 +93,7 @@ def main(args=sys.argv[1:]):
     args = parser.parse_args(args)
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
-        logger.debug('Configurator started with following arguments: %s' % args)
+        logger.debug('Server started with following arguments: %s' % args)
     else:
         logging.basicConfig(level=logging.INFO)
 

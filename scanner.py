@@ -102,7 +102,7 @@ def main(args=sys.argv[1:]):
     args = parser.parse_args(args)
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
-        logger.debug('Configurator started with following arguments: %s' % args)
+        logger.debug('Scanner started with following arguments: %s' % args)
     else:
         logging.basicConfig(level=logging.INFO)
 
