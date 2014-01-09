@@ -69,7 +69,7 @@ def request_hash(name, folder, mtime, size):
     @param size: Filesize as Integer in Bytes
     """
     request = session().query(HashRequest).filter(HashRequest.name == name, HashRequest.folder == folder,
-                                                  HashRequest.size == size, HashRequest.mtime == mtime)
+                                                  HashRequest.size == size, HashRequest.mtime == mtime).first()
     if request is None:
         request = HashRequest(name=name, folder=folder, mtime=mtime, size=size, host=folder.host)
         session().add(request)
