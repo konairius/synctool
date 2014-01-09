@@ -25,7 +25,7 @@ def main(args=sys.argv[1:]):
     main :)
     @param args: the args used for the parser, just useful for testing
     """
-    parser = argparse.ArgumentParser(description='Filesystem Scanner')
+    parser = argparse.ArgumentParser(description='Configuration tool')
     parser.add_argument('-d', '--database', type=str, metavar='"Connection String"', required=True)
     parser.add_argument('--add', dest='add', type=str, metavar='URI',
                         help='The directory you want to add to the Database', action='append')
