@@ -2,8 +2,9 @@
 """
 My unittest
 """
-from datetime import datetime
-import socket
+import os
+from tempfile import mkdtemp
+import configurator
 
 __author__ = 'konsti'
 
@@ -13,58 +14,55 @@ logging.basicConfig(level=logging.DEBUG)
 
 import unittest
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.exc import IntegrityError
-
-from base import File, Host, Base, set_session, Folder
-
 #Setup test database
-database = create_engine('sqlite:///test.sqlite', echo=False)
-#database = create_engine('postgres://konsti:slojit@fileserver.local/uranos', echo=False)
-
-Session = sessionmaker(bind=database)
+#database = create_engine('sqlite:///test.sqlite', echo=False)
+#database = create_engine('postgres://konsti:slojit@localhost/uranos', echo=False)
 
 
-class FileTest(unittest.TestCase):
+class ConfiguratorTest(unittest.TestCase):
     def setUp(self):
-        Base.metadata.drop_all(database)
-        Base.metadata.create_all(database)
-        self.session = Session()
-        set_session(self.session)
+        self.tempfile = '%s/unittest.db' % mkdtemp()
+        self.cs = 'sqlite:///%s' % self.tempfile
 
-    def test_create(self):
-        host = Host.by_name(name=socket.gethostname())
-        root = host.add_root('/')
-        host.add_root('C:/')
-        self.assertIsNotNone(root)
-        dev = root.add_folder('dev')
-        file = dev.add_file(name='null', fhash=1, mtime=datetime.now(), size=3)
-        file2 = File.by_id(file.id)
-        self.assertEqual(file, file2)
-        dev2 = Folder.by_uri('%s::/dev' % socket.gethostname())
-        self.assertEqual(dev, dev2)
-        file3 = File.by_uri('%s::/dev/null' % socket.gethostname())
-        self.assertEqual(file, file3)
-        file.delete()
-        root2 = Folder.by_uri('%s::C:/' % socket.gethostname())
-        self.assertEqual(root2.path, 'C:/')
+    def test_do_noting(self):
+        args = ['--debug', '--database', self.cs]
+        result = configurator.main(args=args)
+        self.assertEqual(result, 0)
 
-        dev.add_file(name='null', fhash=1, mtime=datetime.now(), size=3)
+    def test_add_root_without_schema(self):
+        args = ['--debug', '--database', self.cs, '--add', '/tmp']
+        result = configurator.main(args=args)
+        self.assertEqual(result, -1)
 
-        self.assertRaises(IntegrityError, dev.add_file, 'null', 1, datetime.now(), 3)
+    def test_create_schema(self):
+        args = ['--debug', '--database', self.cs, '--create_schema']
+        result = configurator.main(args=args)
+        self.assertEqual(result, 0)
 
-    # @staticmethod
-    # def test_real():
-    #     host = Host.by_name('konsti-desktop')
-    #     code = host.add_root('/home/konsti/Code')
-    #     scan(code)
+    def test_add_root(self):
+        args = ['--debug', '--database', self.cs, '--create_schema', '--add', '/tmp']
+        result = configurator.main(args=args)
+        self.assertEqual(result, 0)
+
+    def test_add_and_remove_root(self):
+        args = ['--debug', '--database', self.cs, '--create_schema', '--add', '/tmp']
+        result = configurator.main(args=args)
+        self.assertEqual(result, 0)
+        args = ['--debug', '--database', self.cs, '--create_schema', '--remove', '/tmp']
+        result = configurator.main(args=args)
+        self.assertEqual(result, 0)
+
+    def test_remove_non_existent(self):
+        args = ['--debug', '--database', self.cs, '--create_schema', '--remove', '/tmp']
+        result = configurator.main(args=args)
+        self.assertEqual(result, 0)
 
     def tearDown(self):
-        #self.session.commit()
-        self.session.close_all()
+        try:
+            os.remove(self.tempfile)
+        except FileNotFoundError:
+            pass
 
-    #        Base.metadata.drop_all(database)
 
 if __name__ == '__main__':
     unittest.main()

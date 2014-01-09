@@ -46,14 +46,17 @@ class DBObject(object):
     """
 
     def __init__(self, *args, **kwargs):
+        """
+        Just a dummy
+        """
         pass
+
+    id = Column(Integer, primary_key=True)
 
     # noinspection PyMethodParameters
     @declared_attr
     def __tablename__(cls):
         return cls.__name__.lower()
-
-    id = Column(Integer, primary_key=True)
 
     @classmethod
     def by_id(cls, obj_id):
@@ -98,11 +101,40 @@ class FilesystemObject(DBObject):
         return obj
 
 
+class Region(Base, DBObject):
+    """
+    Represents a "Region" a group of hosts with good connectivity
+    """
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False, unique=True)
+
+    @classmethod
+    def by_name(cls, name):
+        """
+        @param name: the hostname you're looking for
+        @return: the host you're looking for
+        """
+        obj = session().query(cls).filter(Host.name == name).first()
+        if None is obj:
+            obj = Host(name=name)
+            session().add(obj)
+            session().flush()
+            logger.debug('Created new Object: %r' % obj)
+        else:
+            logger.debug('Restored Object from Database: %r' % obj)
+        return obj
+
+    def __repr__(self):
+        return '<Region(id=%s, name=%s)>' % (self.id, self.name)
+
+
 class Host(Base, DBObject):
     """
     Database representation of a host
     """
     name = Column(String, nullable=False, unique=True)
+    region_id = Column(Integer, ForeignKey('region.id'))
+    region = relationship('Region', backref=backref('hosts'))
 
     roots = relationship('Folder', primaryjoin="and_(Host.id==Folder.host_id, Folder.parent_id==None)")
 
@@ -121,9 +153,9 @@ class Host(Base, DBObject):
         @param name: the hostname you're looking for
         @return: the host you're looking for
         """
-        obj = session().query(cls).filter_by(name=name).first()
+        obj = session().query(cls).filter(cls.name == name).first()
         if None is obj:
-            obj = Host(name=name)
+            obj = cls(name=name)
             session().add(obj)
             session().flush()
             logger.debug('Created new Object: %r' % obj)
@@ -171,16 +203,13 @@ class Host(Base, DBObject):
         """
         @param path: The path of the now root
         @return: The New created root(Folder)
-        @raise AttributeError: self is not the local host, or the root already exists
+        @raise AttributeError: If the folder already exist
         """
-        if not self.is_local:
-            raise AttributeError('New roots must be declared on the Host in question.')
-
         if not path[-1] == os.sep:
             path += os.sep
 
         old_root = session().query(Folder).filter(
-            and_(Folder.name == path, Folder.parent_id == self.id)).first()
+            and_(Folder.name == path, Folder.parent_id is None, Folder.host_id == self.id)).first()
 
         if old_root is not None:
             raise AttributeError('%s already exist' % old_root)
@@ -191,6 +220,21 @@ class Host(Base, DBObject):
         session().flush()
         return new_root
 
+    def remove_root(self, path):
+        """
+        @param path: The path of the root you want to remove
+        @raise AttributeError: if the root doesnt exit
+        """
+        if not path[-1] == os.sep:
+            path += os.sep
+
+        # noinspection PyComparisonWithNone
+        old_root = session().query(Folder).filter(
+            and_(Folder.name == path, Folder.host_id == self.id, Folder.parent_id == None)).first()
+        if old_root is None:
+            raise AttributeError('%s doesnt exist' % path)
+        old_root.delete()
+
 
 class Folder(Base, FilesystemObject):
     """
@@ -199,7 +243,8 @@ class Folder(Base, FilesystemObject):
     __table_args__ = (
         UniqueConstraint('parent_id', 'host_id', 'name'),
     )
-
+    #id is the same in baseclass but for some reason strange things are happening, so we need this
+    id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
 
     host_id = Column(Integer, ForeignKey('host.id'), nullable=False)
@@ -279,7 +324,8 @@ class File(Base, FilesystemObject):
     __table_args__ = (
         UniqueConstraint('folder_id', 'host_id', 'name'),
     )
-
+    #id is the same in baseclass but for some reason strange things are happening, so we need this
+    id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     hash = Column(String)
     mtime = Column(DateTime)
@@ -308,7 +354,7 @@ class File(Base, FilesystemObject):
         return '<File(%s)>' % self.uri
 
 
-class Server(DBObject, Base):
+class Server(Base, DBObject):
     """
     Entry a Server creates when is starts serving a file and removes when it gets accepted
     """
@@ -321,7 +367,7 @@ class Server(DBObject, Base):
     server = relationship('HashRequest', backref=backref('server'))
 
 
-class HashRequest(DBObject, Base):
+class HashRequest(Base, DBObject):
     """
     Represents a hash request, generate by a scanner, it will be fulfilled by a harsher and a server
     """
@@ -333,7 +379,7 @@ class HashRequest(DBObject, Base):
     host = relationship('Host')
 
     folder_id = Column(Integer, ForeignKey('folder.id'), nullable=False)
-    folder = relationship('Folder', backref=backref('files'))
+    folder = relationship('Folder')
 
     @property
     def path(self):

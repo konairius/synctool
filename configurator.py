@@ -9,6 +9,7 @@ import socket
 import sys
 
 from sqlalchemy import create_engine
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 
 from base import Base, set_session, Host
@@ -36,7 +37,7 @@ def main(args=sys.argv[1:]):
     args = parser.parse_args(args)
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
-        logger.debug('Configurator started with following arguments:\n%s' % args)
+        logger.debug('Configurator started with following arguments: %s' % args)
     else:
         logging.basicConfig(level=logging.INFO)
 
@@ -51,20 +52,32 @@ def main(args=sys.argv[1:]):
     session = sessionmaker(bind=database)()
     set_session(session)
 
-    host = Host.by_name(socket.gethostname())
+    try:
+        if args.add is not None:
+            host = Host.by_name(socket.gethostname())
+            for root_dir in args.add:
+                try:
+                    host.add_root(root_dir)
+                except AttributeError as error:
+                    logger.error(error)
 
-    if args.add is not None:
-        for root_dir in args.add:
-            host.add_root(root_dir)
+        if args.remove is not None:
+            host = Host.by_name(socket.gethostname())
+            for root_dir in args.remove:
+                try:
+                    host.remove_root(root_dir)
+                except AttributeError as error:
+                    logger.error(error)
 
-    if args.remove is not None:
-        for root_dir in args.remove:
-            host.remove_root(root_dir)
+    except OperationalError as error:
+        logger.error(error)
+        session.rollback()
+        return -1
 
     session.commit()
     session.close_all()
-    exit(0)
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    exit(main())
