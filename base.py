@@ -358,25 +358,27 @@ class Server(Base, DBObject):
     """
     Entry a Server creates when is starts serving a file and removes when it gets accepted
     """
-    host_id = Column(Integer, ForeignKey('host.id'), nullable=False)
-    host = relationship('Host')
-
+    ip = Column(String, nullable=False)
     port = Column(Integer, nullable=False)
 
     request_id = Column(Integer, ForeignKey('hashrequest.id'), nullable=False)
-    server = relationship('HashRequest', backref=backref('server'))
+    request = relationship('HashRequest', backref=backref('server'))
+
+    def __repr__(self):
+        return '<Server(ip=%s, port=%s, request_id=%s)>' % (self.ip, self.port, self.request_id)
 
 
 class HashRequest(Base, DBObject):
     """
     Represents a hash request, generate by a scanner, it will be fulfilled by a harsher and a server
     """
+
     name = Column(String, nullable=False)
     mtime = Column(DateTime, nullable=False)
     size = Column(Integer, nullable=False)
 
     host_id = Column(Integer, ForeignKey('host.id'), nullable=False)
-    host = relationship('Host')
+    host = relationship('Host', backref=backref('requests'))
 
     folder_id = Column(Integer, ForeignKey('folder.id'), nullable=False)
     folder = relationship('Folder')
