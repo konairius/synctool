@@ -12,7 +12,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
-from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, and_, DateTime, Boolean, BigInteger
+from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, and_, DateTime, Boolean, BigInteger, Unicode
 from sqlalchemy.orm import relationship, backref
 
 Base = declarative_base()
@@ -106,7 +106,7 @@ class Region(Base, DBObject):
     Represents a "Region" a group of hosts with good connectivity
     """
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False, unique=True)
+    name = Column(Unicode, nullable=False, unique=True)
 
     @classmethod
     def by_name(cls, name):
@@ -132,7 +132,7 @@ class Host(Base, DBObject):
     """
     Database representation of a host
     """
-    name = Column(String, nullable=False, unique=True)
+    name = Column(Unicode, nullable=False, unique=True)
     region_id = Column(Integer, ForeignKey('region.id'))
     region = relationship('Region', backref=backref('hosts'))
 
@@ -245,7 +245,7 @@ class Folder(Base, FilesystemObject):
     )
     #id is the same in baseclass but for some reason strange things are happening, so we need this
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
+    name = Column(Unicode, nullable=False)
 
     host_id = Column(Integer, ForeignKey('host.id'), nullable=False)
     host = relationship('Host', cascade='all')
@@ -326,7 +326,7 @@ class File(Base, FilesystemObject):
     )
     #id is the same in baseclass but for some reason strange things are happening, so we need this
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
+    name = Column(Unicode, nullable=False)
     hash = Column(String, nullable=False)
     mtime = Column(DateTime, nullable=False)
     size = Column(BigInteger, nullable=False)
@@ -373,7 +373,7 @@ class HashRequest(Base, DBObject):
     Represents a hash request, generate by a scanner, it will be fulfilled by a harsher and a server
     """
 
-    name = Column(String, nullable=False)
+    name = Column(Unicode, nullable=False)
     mtime = Column(DateTime, nullable=False)
     size = Column(BigInteger, nullable=False)
 
