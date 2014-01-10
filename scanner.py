@@ -106,7 +106,7 @@ def main(args=sys.argv[1:]):
     else:
         logging.basicConfig(level=logging.INFO)
 
-    database = create_engine(args.database, echo=False)
+    database = create_engine(args.database, echo=False, assert_unicode=True)
     s = sessionmaker(bind=database)()
     set_session(s)
     daemon(args.interval)
