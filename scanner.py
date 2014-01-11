@@ -17,7 +17,7 @@ import sys
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from base import set_session, Host, HashRequest, session
+from base import set_session, Host, HashRequest, session, remove_surrogate_escaping
 
 
 __author__ = 'konsti'
@@ -37,7 +37,7 @@ def scan(folder):
         raise AttributeError('%r is not local' % folder)
 
     for name in listdir(folder.path):
-        archive = folder.child_by_name(name)
+        archive = folder.child_by_name(remove_surrogate_escaping(name))
         path = join(folder.path, name)
         if isfile(path):
             if archive is None or archive.mtime != datetime.fromtimestamp(getmtime(path)) or archive.size != getsize(
@@ -48,7 +48,7 @@ def scan(folder):
                              size=getsize(path))
         elif isdir(path):
             if archive is None:
-                archive = folder.add_folder(name)
+                archive = folder.add_folder(remove_surrogate_escaping(name))
             scan(archive)
 
     for file in folder.files:
@@ -68,6 +68,7 @@ def request_hash(name, folder, mtime, size):
     @param mtime: timestamp as a datetime.datetime object
     @param size: Filesize as Integer in Bytes
     """
+    name = remove_surrogate_escaping(name)
     request = session().query(HashRequest).filter(HashRequest.name == name, HashRequest.folder == folder,
                                                   HashRequest.size == size, HashRequest.mtime == mtime).first()
     if request is None:
@@ -106,7 +107,7 @@ def main(args=sys.argv[1:]):
     else:
         logging.basicConfig(level=logging.INFO)
 
-    database = create_engine(args.database, echo=False, assert_unicode=True)
+    database = create_engine(args.database, echo=False)
     s = sessionmaker(bind=database)()
     set_session(s)
     daemon(args.interval)

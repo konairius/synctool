@@ -40,7 +40,7 @@ class ConfiguratorTest(unittest.TestCase):
         self.assertEqual(result, 0)
 
     def test_add_root(self):
-        args = ['--debug', '--database', self.cs, '--create_schema', '--add', '/tmp']
+        args = ['--debug', '--database', self.cs, '--create_schema', '--add', '/tmp/\udcdf']
         result = configurator.main(args=args)
         self.assertEqual(result, 0)
 

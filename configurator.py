@@ -12,7 +12,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 
-from base import Base, set_session, Host
+from base import Base, set_session, Host, remove_surrogate_escaping
 
 
 __author__ = 'konsti'
@@ -56,6 +56,7 @@ def main(args=sys.argv[1:]):
         if args.add is not None:
             host = Host.by_name(socket.gethostname())
             for root_dir in args.add:
+                root_dir = remove_surrogate_escaping(root_dir)
                 try:
                     host.add_root(root_dir)
                 except AttributeError as error:
@@ -64,6 +65,7 @@ def main(args=sys.argv[1:]):
         if args.remove is not None:
             host = Host.by_name(socket.gethostname())
             for root_dir in args.remove:
+                root_dir = remove_surrogate_escaping(root_dir)
                 try:
                     host.remove_root(root_dir)
                 except AttributeError as error:

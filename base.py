@@ -407,3 +407,8 @@ def _matching_chars(left, right):
         except IndexError:
             break
     return index
+
+
+def remove_surrogate_escaping(string, method='xmlcharrefreplace'):
+    assert method in ('ignore', 'replace', 'backslashreplace', 'xmlcharrefreplace'), 'invalid removal method'
+    return string.encode('utf-8', method).decode('utf-8')
