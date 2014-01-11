@@ -13,7 +13,7 @@ import sys
 from time import sleep
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from base import set_session, session, HashRequest, File
+from base import set_session, session, HashRequest, File, remove_surrogate_escaping
 
 __author__ = 'konsti'
 logger = logging.getLogger(__name__)
@@ -68,7 +68,8 @@ def work():
         return
     fhash = calculate_hash(request)
 
-    file = File(name=request.name, folder=request.folder, mtime=request.mtime, size=request.size,
+    file = File(name=remove_surrogate_escaping(request.name), folder=request.folder, mtime=request.mtime,
+                size=request.size,
                 host=request.host, hash=fhash)
 
     session().add(file)
