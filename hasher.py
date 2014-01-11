@@ -11,9 +11,7 @@ from multiprocessing import Pool
 import socket
 import sys
 from time import sleep
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from base import set_session, session, HashRequest, File, remove_surrogate_escaping
+from base import HashRequest, File, remove_surrogate_escaping, SessionManager
 
 __author__ = 'konsti'
 logger = logging.getLogger(__name__)
@@ -50,10 +48,10 @@ def get_request():
     @return: a random request guarantied to be locked and unique
     """
     try:
-        for request in session().query(HashRequest).filter(HashRequest.locked == False).with_for_update():
+        for request in SessionManager.query(HashRequest).filter(HashRequest.locked == False).with_for_update():
             if request.server is not None:
                 request.locked = True
-                session().commit()
+                SessionManager.safe_commit()
                 return request
     except Exception as e:
         logger.error(e)
@@ -72,11 +70,10 @@ def work():
                 size=request.size,
                 host=request.host, hash=fhash)
 
-    session().add(file)
-    session().flush()
+    SessionManager.safe_add(file)
     request.server.delete()
     request.delete()
-    session().commit()
+    SessionManager.safe_commit()
 
 
 def daemon(interval, database):
@@ -84,13 +81,9 @@ def daemon(interval, database):
     @param database: The database used for Communication
     @param interval: Integer, seconds between to scan runs
     """
-
-    database = create_engine(database, echo=False)
-    s = sessionmaker(bind=database)()
-    set_session(s)
+    SessionManager(database)
     while True:
         work()
-        s.commit()
         sleep(interval)
 
 

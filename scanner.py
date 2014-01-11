@@ -16,9 +16,8 @@ from time import sleep
 import sys
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from base import set_session, Host, HashRequest, session, remove_surrogate_escaping, restore_utf8
+from base import Host, HashRequest, remove_surrogate_escaping, restore_utf8, SessionManager
 
 
 __author__ = 'konsti'
@@ -77,12 +76,11 @@ def request_hash(name, folder, mtime, size):
     @param size: Filesize as Integer in Bytes
     """
     name = remove_surrogate_escaping(name)
-    request = session().query(HashRequest).filter(HashRequest.name == name, HashRequest.folder == folder,
-                                                  HashRequest.size == size, HashRequest.mtime == mtime).first()
+    request = SessionManager.query(HashRequest).filter(HashRequest.name == name, HashRequest.folder == folder,
+                                                       HashRequest.size == size, HashRequest.mtime == mtime).first()
     if request is None:
         request = HashRequest(name=name, folder=folder, mtime=mtime, size=size, host=folder.host)
-        session().add(request)
-        #session().flush()
+        SessionManager.safe_add(request)
 
 
 def daemon(interval, threads):
@@ -98,7 +96,7 @@ def daemon(interval, threads):
             for root in host.roots:
                 future = pool.submit(scan, root, pool)
                 future.result()
-                session().commit()
+                SessionManager.safe_commit()
         sleep(interval)
 
 
@@ -122,8 +120,7 @@ def main(args=sys.argv[1:]):
         logging.basicConfig(level=logging.INFO)
 
     database = create_engine(args.database, echo=False)
-    s = sessionmaker(bind=database)()
-    set_session(s)
+    SessionManager(database)
     daemon(args.interval, args.threads)
 
 
