@@ -6,6 +6,7 @@ and requests others to do the updates if necessary.
 """
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from genericpath import isfile, getmtime, getsize, isdir
 from os import listdir
@@ -27,12 +28,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def scan(folder):
+def scan(folder, pool):
     """
     Main scanner function
     @param folder: the folder you want to scan
     @raise AttributeError: if folder is not local
     """
+
+    futures = list()
+
     if not folder.host.is_local:
         raise AttributeError('%r is not local' % folder)
 
@@ -49,7 +53,7 @@ def scan(folder):
         elif isdir(restore_utf8(path)):
             if archive is None:
                 archive = folder.add_folder(remove_surrogate_escaping(name))
-            scan(archive)
+            futures.append(pool.submit(scan, archive, pool))
 
     for file in folder.files:
         if not isfile(restore_utf8(file.path)):
@@ -58,6 +62,9 @@ def scan(folder):
     for child in folder.folders:
         if not isdir(restore_utf8(child.path)):
             child.delete()
+
+    for future in futures:
+        future.result()
 
 
 def request_hash(name, folder, mtime, size):
@@ -77,16 +84,20 @@ def request_hash(name, folder, mtime, size):
         session().flush()
 
 
-def daemon(interval):
+def daemon(interval, threads):
     """
+    @param threads: The number of parallel scanning threads
     @param interval: Integer, seconds between to scan runs
     """
+
     host = Host.by_name(socket.gethostname())
     while True:
-        logger.debug('Stating scanner round')
-        for root in host.roots:
-            scan(root)
-            session().commit()
+        logger.debug('New Scanning Run')
+        with ThreadPoolExecutor(max_workers=threads) as pool:
+            for root in host.roots:
+                future = pool.submit(scan, root, pool)
+                future.result()
+        session().commit()
         sleep(interval)
 
 
@@ -100,6 +111,8 @@ def main(args=sys.argv[1:]):
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('-i', '--interval', type=int, metavar='SECONDS', default=360,
                         help='Interval between two Scan runs, defaults to 1 hour')
+    parser.add_argument('-t', '--threads', type=int, metavar='SECONDS', default=12,
+                        help='Number of Threads to use for scanning')
     args = parser.parse_args(args)
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
@@ -110,7 +123,7 @@ def main(args=sys.argv[1:]):
     database = create_engine(args.database, echo=False)
     s = sessionmaker(bind=database)()
     set_session(s)
-    daemon(args.interval)
+    daemon(args.interval, args.threads)
 
 
 if __name__ == '__main__':
