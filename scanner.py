@@ -81,7 +81,7 @@ def request_hash(name, folder, mtime, size):
     if request is None:
         request = HashRequest(name=name, folder=folder, mtime=mtime, size=size, host=folder.host)
         session().add(request)
-        session().flush()
+        #session().flush()
 
 
 def daemon(interval, threads):
