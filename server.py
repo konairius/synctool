@@ -71,7 +71,7 @@ def daemon(interval, port):
     logger.info('Starting TCPServer in thread: %s' % server_thread.name)
     ip, port = server.server_address
     while True:
-        logger.debug('Stating server Round')
+        logger.debug('Updating Request list')
         for request in host.requests:
             announce_server(request, ip, port)
         session().commit()
