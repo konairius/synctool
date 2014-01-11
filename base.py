@@ -261,7 +261,7 @@ class Folder(Base, FilesystemObject):
         """
         if None is self.parent:
             return self.name
-        return '%s%s%s' % (self.parent.path, self.name, os.sep)
+        return '%s%s%s' % (self.parent.path, restore_utf8(self.name), os.sep)
 
     @property
     def uri(self):
@@ -342,7 +342,7 @@ class File(Base, FilesystemObject):
         """
         @return: the path, honorees the local path separator
         """
-        return '%s%s' % (self.folder.path, self.name)
+        return '%s%s' % (self.folder.path, restore_utf8(self.name))
 
     @property
     def uri(self):
@@ -394,7 +394,7 @@ class HashRequest(Base, DBObject):
         """
         @return: the path, honorees the local path separator
         """
-        return '%s%s' % (self.folder.path, self.name)
+        return '%s%s' % (self.folder.path, restore_utf8(self.name))
 
 
 def _matching_chars(left, right):
