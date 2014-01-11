@@ -34,8 +34,6 @@ def scan(folder, pool):
     @raise AttributeError: if folder is not local
     """
 
-    futures = list()
-
     if not folder.host.is_local:
         raise AttributeError('%r is not local' % folder)
 
@@ -52,7 +50,7 @@ def scan(folder, pool):
         elif isdir(restore_utf8(path)):
             if archive is None:
                 archive = folder.add_folder(remove_surrogate_escaping(name))
-            futures.append(pool.submit(scan, archive, pool))
+            pool.submit(scan, archive, pool)
 
     for file in folder.files:
         if not isfile(restore_utf8(file.path)):
@@ -61,10 +59,6 @@ def scan(folder, pool):
     for child in folder.folders:
         if not isdir(restore_utf8(child.path)):
             child.delete()
-
-    for future in futures:
-        future.result()
-    return len(futures)
 
 
 def request_hash(name, folder, mtime, size):
@@ -94,8 +88,7 @@ def daemon(interval, threads):
         logger.debug('New Scanning Run')
         with ThreadPoolExecutor(max_workers=threads) as pool:
             for root in host.roots:
-                future = pool.submit(scan, root, pool)
-                future.result()
+                pool.submit(scan, root, pool)
                 SessionManager.safe_commit()
         sleep(interval)
 
