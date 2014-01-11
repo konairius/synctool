@@ -2,6 +2,7 @@
 """
 The Base Module where all Classes used by multiple Daemons are specified
 """
+from html.parser import HTMLParser
 import os
 import socket
 
@@ -412,3 +413,8 @@ def _matching_chars(left, right):
 def remove_surrogate_escaping(string, method='xmlcharrefreplace'):
     assert method in ('ignore', 'replace', 'backslashreplace', 'xmlcharrefreplace'), 'invalid removal method'
     return string.encode('utf-8', method).decode('utf-8')
+
+
+def restore_utf8(string):
+    parser = HTMLParser()
+    return parser.unescape(string)

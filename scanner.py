@@ -17,7 +17,7 @@ import sys
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from base import set_session, Host, HashRequest, session, remove_surrogate_escaping
+from base import set_session, Host, HashRequest, session, remove_surrogate_escaping, restore_utf8
 
 
 __author__ = 'konsti'
@@ -36,27 +36,27 @@ def scan(folder):
     if not folder.host.is_local:
         raise AttributeError('%r is not local' % folder)
 
-    for name in listdir(folder.path):
+    for name in listdir(restore_utf8(folder.path)):
         archive = folder.child_by_name(remove_surrogate_escaping(name))
         path = join(folder.path, name)
-        if isfile(path):
+        if isfile(restore_utf8(path)):
             if archive is None or archive.mtime != datetime.fromtimestamp(getmtime(path)) or archive.size != getsize(
                     path):
                 if archive is not None:
                     archive.delete()
                 request_hash(name=name, folder=folder, mtime=datetime.fromtimestamp(getmtime(path)),
                              size=getsize(path))
-        elif isdir(path):
+        elif isdir(restore_utf8(path)):
             if archive is None:
                 archive = folder.add_folder(remove_surrogate_escaping(name))
             scan(archive)
 
     for file in folder.files:
-        if not isfile(file.path):
+        if not isfile(restore_utf8(file.path)):
             file.delete()
 
     for child in folder.folders:
-        if not isdir(child.path):
+        if not isdir(restore_utf8(child.path)):
             child.delete()
 
 
