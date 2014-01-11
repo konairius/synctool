@@ -5,7 +5,6 @@ The Base Module where all Classes used by multiple Daemons are specified
 from html.parser import HTMLParser
 import os
 import socket
-from threading import Lock
 
 __author__ = 'konsti'
 
@@ -15,79 +14,31 @@ logger = logging.getLogger(__name__)
 
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, and_, DateTime, Boolean, BigInteger, Unicode
-from sqlalchemy.orm import relationship, backref, sessionmaker
+from sqlalchemy.orm import relationship, backref
 
 Base = declarative_base()
 
-session_manager = None
+global_session = None
 
 
-class SessionManager(object):
+def session():
     """
-    This is the Global Session manager, like the highlander, there can only be one.
-    Creating a new one will destroy(overwrite) the old one, it provides some Connivance-methods like,
-    safe_commit(), safe_add() and so on, these are implemented as class methods and so you don't need
-    to get the SessionManager Object
+    @raise RuntimeError: if no session is set
+    @return: The SQLAlchemy session that is was set by set_session
     """
+    global global_session
+    if global_session is None:
+        raise RuntimeError('Session was not set')
+    return global_session
 
-    def __init__(self, database):
-        global session_manager
-        self._database = database
-        self._session = sessionmaker(bind=database)()
-        self._session_lock = Lock()
-        session_manager = self
-        logger.info('Updated Session-Manager')
 
-    @classmethod
-    def _get_manager(cls):
-        global session_manager
-        if session_manager is None:
-            raise RuntimeError('SessionManager not Initialized')
-        return session_manager
-
-    @classmethod
-    def safe_commit(cls):
-        self = cls._get_manager()
-        with self._session_lock:
-            try:
-                self._session.commit()
-            except Exception as e:
-                self._session.rollback()
-                logger.exception(e)
-
-    @classmethod
-    def rollback(cls):
-        self = cls._get_manager()
-        self._session.rollback()
-
-    @classmethod
-    def safe_add(cls, o):
-        self = cls._get_manager()
-        with self._session_lock:
-            try:
-                self._session.add(o)
-            except Exception as e:
-                self._session.rollback()
-                logger.exception(e)
-
-    @classmethod
-    def safe_delete(cls, o):
-        self = cls._get_manager()
-        with self._session_lock:
-            try:
-                self._session.delete(o)
-            except Exception as e:
-                self._session.rollback()
-                logger.exception(e)
-
-    @classmethod
-    def query(cls, t):
-        self = cls._get_manager()
-        try:
-            return self._session.query(t)
-        except Exception as e:
-            logger.exception(e)
-            raise e
+def set_session(new_session):
+    """
+    @param new_session: The SQLAlchemy session that will be used until another one is set
+    """
+    logger.info('Database Session set to: %s' % new_session.get_bind())
+    global global_session
+    global_session = new_session
 
 
 class DBObject(object):
@@ -115,7 +66,7 @@ class DBObject(object):
         @return: the Object
         @raise AttributeError: if the object was not found
         """
-        obj = SessionManager.query(cls).filter_by(id=obj_id).first()
+        obj = session().query(cls).filter_by(id=obj_id).first()
         if None is obj:
             raise AttributeError('%s has no object with id %s' % (cls.__name__, obj_id))
         logger.debug('Restored Object from Database: %r' % obj)
@@ -125,7 +76,8 @@ class DBObject(object):
         """
         removes the object from the database
         """
-        SessionManager.safe_delete(self)
+        session().delete(self)
+        session().flush()
         logger.debug('Deleted Object: %r' % self)
 
 
@@ -163,10 +115,11 @@ class Region(Base, DBObject):
         @param name: the hostname you're looking for
         @return: the host you're looking for
         """
-        obj = SessionManager.query(cls).filter(Host.name == name).first()
+        obj = session().query(cls).filter(Host.name == name).first()
         if None is obj:
             obj = Host(name=name)
-            SessionManager.safe_add(obj)
+            session().add(obj)
+            session().flush()
             logger.debug('Created new Object: %r' % obj)
         else:
             logger.debug('Restored Object from Database: %r' % obj)
@@ -201,11 +154,11 @@ class Host(Base, DBObject):
         @param name: the hostname you're looking for
         @return: the host you're looking for
         """
-        name = remove_surrogate_escaping(name)
-        obj = SessionManager.query(cls).filter(cls.name == name).first()
+        obj = session().query(cls).filter(cls.name == name).first()
         if None is obj:
             obj = cls(name=name)
-            SessionManager.safe_add(obj)
+            session().add(obj)
+            session().flush()
             logger.debug('Created new Object: %r' % obj)
         else:
             logger.debug('Restored Object from Database: %r' % obj)
@@ -230,7 +183,7 @@ class Host(Base, DBObject):
                 best_score = score
 
         if best is None:
-            raise RuntimeError('Target not in any Root')
+            return self.add_root(path=path)
 
         rel_path = path.lstrip(best.path)
         while best.path != path and rel_path is not None and rel_path != os.sep and rel_path != '':
@@ -256,14 +209,16 @@ class Host(Base, DBObject):
         if not path[-1] == os.sep:
             path += os.sep
 
-        old_root = SessionManager.query(Folder).filter(
+        old_root = session().query(Folder).filter(
             and_(Folder.name == path, Folder.parent_id is None, Folder.host_id == self.id)).first()
 
         if old_root is not None:
             raise AttributeError('%s already exist' % old_root)
 
         new_root = Folder(name=path, host=self)
-        SessionManager.safe_add(new_root)
+        #self._roots.append(new_root)
+        session().add(new_root)
+        session().flush()
         return new_root
 
     def remove_root(self, path):
@@ -275,7 +230,7 @@ class Host(Base, DBObject):
             path += os.sep
 
         # noinspection PyComparisonWithNone
-        old_root = SessionManager.query(Folder).filter(
+        old_root = session().query(Folder).filter(
             and_(Folder.name == path, Folder.host_id == self.id, Folder.parent_id == None)).first()
         if old_root is None:
             raise AttributeError('%s doesnt exist' % path)
@@ -327,9 +282,9 @@ class Folder(Base, FilesystemObject):
         @param name: the name of the Folder
         @return: the new created Folder
         """
-        name = remove_surrogate_escaping(name)
         folder = Folder(parent=self, name=name, host=self.host)
-        SessionManager.safe_add(folder)
+        session().add(folder)
+        session().flush()
         logger.debug('Created new Object: %r' % folder)
         return folder
 
@@ -342,9 +297,9 @@ class Folder(Base, FilesystemObject):
         @param name: the name of the File
         @return: the new created File
         """
-        name = remove_surrogate_escaping(name)
         file = File(folder=self, name=name, hash=fhash, mtime=mtime, size=size, host=self.host)
-        SessionManager.safe_add(file)
+        session().add(file)
+        session().flush()
         logger.debug('Created new Object: %r' % file)
         return file
 
@@ -353,10 +308,9 @@ class Folder(Base, FilesystemObject):
         @param name: the name
         @return: The File or folder
         """
-        name = remove_surrogate_escaping(name)
-        obj = SessionManager.query(File).filter(and_(File.name == name, File.folder_id == self.id)).first()
+        obj = session().query(File).filter(and_(File.name == name, File.folder_id == self.id)).first()
         if None is obj:
-            obj = SessionManager.query(Folder).filter(and_(Folder.name == name, Folder.parent_id == self.id)).first()
+            obj = session().query(Folder).filter(and_(Folder.name == name, Folder.parent_id == self.id)).first()
         if obj is not None:
             logger.debug('Restored Object from Database: %r' % obj)
         else:

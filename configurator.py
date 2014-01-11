@@ -10,8 +10,9 @@ import sys
 
 from sqlalchemy import create_engine
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import sessionmaker
 
-from base import Base, Host, remove_surrogate_escaping, SessionManager
+from base import Base, set_session, Host, remove_surrogate_escaping
 
 
 __author__ = 'konsti'
@@ -48,7 +49,8 @@ def main(args=sys.argv[1:]):
     if args.create_schema or args.clear_database:
         Base.metadata.create_all(database)
 
-    SessionManager(database)
+    session = sessionmaker(bind=database)()
+    set_session(session)
 
     try:
         if args.add is not None:
@@ -71,10 +73,11 @@ def main(args=sys.argv[1:]):
 
     except OperationalError as error:
         logger.error(error)
-        SessionManager.rollback()
+        session.rollback()
         return -1
 
-    SessionManager.safe_commit()
+    session.commit()
+    session.close_all()
     return 0
 
 
