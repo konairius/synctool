@@ -65,6 +65,7 @@ def scan(folder, pool):
 
     for future in futures:
         future.result()
+    return len(futures)
 
 
 def request_hash(name, folder, mtime, size):
@@ -97,7 +98,7 @@ def daemon(interval, threads):
             for root in host.roots:
                 future = pool.submit(scan, root, pool)
                 future.result()
-        session().commit()
+                session().commit()
         sleep(interval)
 
 
