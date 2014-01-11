@@ -77,7 +77,7 @@ class DBObject(object):
         removes the object from the database
         """
         session().delete(self)
-        session().flush()
+        #session().flush()
         logger.debug('Deleted Object: %r' % self)
 
 
@@ -119,7 +119,7 @@ class Region(Base, DBObject):
         if None is obj:
             obj = Host(name=name)
             session().add(obj)
-            session().flush()
+            #session().flush()
             logger.debug('Created new Object: %r' % obj)
         else:
             logger.debug('Restored Object from Database: %r' % obj)
@@ -158,7 +158,7 @@ class Host(Base, DBObject):
         if None is obj:
             obj = cls(name=name)
             session().add(obj)
-            session().flush()
+            #session().flush()
             logger.debug('Created new Object: %r' % obj)
         else:
             logger.debug('Restored Object from Database: %r' % obj)
@@ -218,7 +218,7 @@ class Host(Base, DBObject):
         new_root = Folder(name=path, host=self)
         #self._roots.append(new_root)
         session().add(new_root)
-        session().flush()
+        #session().flush()
         return new_root
 
     def remove_root(self, path):
@@ -284,7 +284,7 @@ class Folder(Base, FilesystemObject):
         """
         folder = Folder(parent=self, name=name, host=self.host)
         session().add(folder)
-        session().flush()
+        ###session().flush()
         logger.debug('Created new Object: %r' % folder)
         return folder
 
@@ -299,7 +299,7 @@ class Folder(Base, FilesystemObject):
         """
         file = File(folder=self, name=name, hash=fhash, mtime=mtime, size=size, host=self.host)
         session().add(file)
-        session().flush()
+        ###session().flush()
         logger.debug('Created new Object: %r' % file)
         return file
 
