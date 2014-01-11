@@ -40,8 +40,8 @@ def scan(folder, pool):
     if not folder.host.is_local:
         raise AttributeError('%r is not local' % folder)
 
-    for name in listdir(restore_utf8(folder.path)):
-        archive = folder.child_by_name(remove_surrogate_escaping(name))
+    for name in listdir(folder.path):
+        archive = folder.child_by_name(name)
         path = join(folder.path, name)
         if isfile(restore_utf8(path)):
             if archive is None or archive.mtime != datetime.fromtimestamp(getmtime(path)) or archive.size != getsize(

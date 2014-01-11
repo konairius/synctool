@@ -154,6 +154,7 @@ class Host(Base, DBObject):
         @param name: the hostname you're looking for
         @return: the host you're looking for
         """
+        name = remove_surrogate_escaping(name)
         obj = session().query(cls).filter(cls.name == name).first()
         if None is obj:
             obj = cls(name=name)
@@ -183,7 +184,7 @@ class Host(Base, DBObject):
                 best_score = score
 
         if best is None:
-            return self.add_root(path=path)
+            raise RuntimeError('Target not in any Root')
 
         rel_path = path.lstrip(best.path)
         while best.path != path and rel_path is not None and rel_path != os.sep and rel_path != '':
@@ -282,6 +283,7 @@ class Folder(Base, FilesystemObject):
         @param name: the name of the Folder
         @return: the new created Folder
         """
+        name = remove_surrogate_escaping(name)
         folder = Folder(parent=self, name=name, host=self.host)
         session().add(folder)
         ###session().flush()
@@ -297,6 +299,7 @@ class Folder(Base, FilesystemObject):
         @param name: the name of the File
         @return: the new created File
         """
+        name = remove_surrogate_escaping(name)
         file = File(folder=self, name=name, hash=fhash, mtime=mtime, size=size, host=self.host)
         session().add(file)
         ###session().flush()
@@ -308,6 +311,7 @@ class Folder(Base, FilesystemObject):
         @param name: the name
         @return: The File or folder
         """
+        name = remove_surrogate_escaping(name)
         obj = session().query(File).filter(and_(File.name == name, File.folder_id == self.id)).first()
         if None is obj:
             obj = session().query(Folder).filter(and_(Folder.name == name, Folder.parent_id == self.id)).first()
