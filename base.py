@@ -5,6 +5,7 @@ The Base Module where all Classes used by multiple Daemons are specified
 from html.parser import HTMLParser
 import os
 import socket
+from sqlalchemy.orm.exc import NoResultFound
 
 __author__ = 'konsti'
 
@@ -17,28 +18,6 @@ from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, an
 from sqlalchemy.orm import relationship, backref
 
 Base = declarative_base()
-
-global_session = None
-
-
-def session():
-    """
-    @raise RuntimeError: if no session is set
-    @return: The SQLAlchemy session that is was set by set_session
-    """
-    global global_session
-    if global_session is None:
-        raise RuntimeError('Session was not set')
-    return global_session
-
-
-def set_session(new_session):
-    """
-    @param new_session: The SQLAlchemy session that will be used until another one is set
-    """
-    logger.info('Database Session set to: %s' % new_session.get_bind())
-    global global_session
-    global_session = new_session
 
 
 class DBObject(object):
@@ -60,25 +39,18 @@ class DBObject(object):
         return cls.__name__.lower()
 
     @classmethod
-    def by_id(cls, obj_id):
+    def by_id(cls, obj_id, session):
         """
         @param obj_id: id in the database table
+        @param session: The Session used for Querying
         @return: the Object
         @raise AttributeError: if the object was not found
         """
-        obj = session().query(cls).filter_by(id=obj_id).first()
+        obj = session.query(cls).filter_by(id=obj_id).first()
         if None is obj:
             raise AttributeError('%s has no object with id %s' % (cls.__name__, obj_id))
         logger.debug('Restored Object from Database: %r' % obj)
         return obj
-
-    def delete(self):
-        """
-        removes the object from the database
-        """
-        session().delete(self)
-        session().flush()
-        logger.debug('Deleted Object: %r' % self)
 
 
 class FilesystemObject(DBObject):
@@ -87,16 +59,17 @@ class FilesystemObject(DBObject):
     """
 
     @classmethod
-    def by_uri(cls, uri):
+    def by_uri(cls, uri, session):
         """
         @param uri: <hostname>::<path>
+        @param session: The Session used for Querying
         @return: The demanded object
         @raise AttributeError: if the uri is invalid
         """
         if not '::' in uri:
             raise AttributeError('%s is not a valid URI' % uri)
         hostname, path = uri.split(sep='::', maxsplit=1)
-        host = Host.by_name(hostname)
+        host = Host.by_name(hostname, session=session)
         obj = host.descendant_by_path(path)
         logger.debug('Restored object from Database: %r' % obj)
         return obj
@@ -110,19 +83,27 @@ class Region(Base, DBObject):
     name = Column(Unicode, nullable=False, unique=True)
 
     @classmethod
-    def by_name(cls, name):
+    def create_new(cls, name):
         """
+        Creates a new Region
+        @param name: The name of the new host
+        """
+        return cls(name=name)
+
+
+    @classmethod
+    def by_name(cls, name, session):
+        """
+        @param session: The Session used for Querying
         @param name: the hostname you're looking for
         @return: the host you're looking for
+        @raise NoResultFound: when the host doesn't exist
         """
-        obj = session().query(cls).filter(Host.name == name).first()
-        if None is obj:
-            obj = Host(name=name)
-            session().add(obj)
-            session().flush()
-            logger.debug('Created new Object: %r' % obj)
-        else:
-            logger.debug('Restored Object from Database: %r' % obj)
+        try:
+            obj = session.query(cls).filter(cls.name == name).one()
+        except Exception as e:
+            logger.debug('<%s>: %s' % (cls.__name__, e))
+            raise e
         return obj
 
     def __repr__(self):
@@ -149,19 +130,28 @@ class Host(Base, DBObject):
         return True
 
     @classmethod
-    def by_name(cls, name):
+    def create_new(cls, name, region):
         """
+        Creates a new Host
+        @param name: The name of the new host
+        @param region: The region it is in
+        """
+        return cls(name=name, region=region)
+
+
+    @classmethod
+    def by_name(cls, name, session):
+        """
+        @param session: The Session used for Querying
         @param name: the hostname you're looking for
         @return: the host you're looking for
+        @raise NoResultFound: when the host doesn't exist
         """
-        obj = session().query(cls).filter(cls.name == name).first()
-        if None is obj:
-            obj = cls(name=name)
-            session().add(obj)
-            session().flush()
-            logger.debug('Created new Object: %r' % obj)
-        else:
-            logger.debug('Restored Object from Database: %r' % obj)
+        try:
+            obj = session.query(cls).filter(cls.name == name).one()
+        except Exception as e:
+            logger.debug('<%s>: %s' % (cls.__name__, e))
+            raise e
         return obj
 
     def descendant_by_path(self, path):
@@ -183,7 +173,7 @@ class Host(Base, DBObject):
                 best_score = score
 
         if best is None:
-            return self.add_root(path=path)
+            raise NoResultFound('%s is not in a valid root of %s' % (path, self))
 
         rel_path = path.lstrip(best.path)
         while best.path != path and rel_path is not None and rel_path != os.sep and rel_path != '':
@@ -200,37 +190,35 @@ class Host(Base, DBObject):
     def __repr__(self):
         return '<Host(id=%s, name=%s)>' % (self.id, self.name)
 
-    def add_root(self, path):
+    def add_root(self, path, session):
         """
         @param path: The path of the now root
+        @param session: The Session used for Querying
         @return: The New created root(Folder)
         @raise AttributeError: If the folder already exist
         """
         if not path[-1] == os.sep:
             path += os.sep
 
-        old_root = session().query(Folder).filter(
+        old_root = session.query(Folder).filter(
             and_(Folder.name == path, Folder.parent_id is None, Folder.host_id == self.id)).first()
 
         if old_root is not None:
             raise AttributeError('%s already exist' % old_root)
 
-        new_root = Folder(name=path, host=self)
-        #self._roots.append(new_root)
-        session().add(new_root)
-        session().flush()
-        return new_root
+        return Folder(name=path, host=self)
 
-    def remove_root(self, path):
+    def remove_root(self, path, session):
         """
         @param path: The path of the root you want to remove
+        @param session: The Session used for Querying
         @raise AttributeError: if the root doesnt exit
         """
         if not path[-1] == os.sep:
             path += os.sep
 
         # noinspection PyComparisonWithNone
-        old_root = session().query(Folder).filter(
+        old_root = session.query(Folder).filter(
             and_(Folder.name == path, Folder.host_id == self.id, Folder.parent_id == None)).first()
         if old_root is None:
             raise AttributeError('%s doesnt exist' % path)
@@ -283,8 +271,6 @@ class Folder(Base, FilesystemObject):
         @return: the new created Folder
         """
         folder = Folder(parent=self, name=name, host=self.host)
-        session().add(folder)
-        session().flush()
         logger.debug('Created new Object: %r' % folder)
         return folder
 
@@ -298,19 +284,18 @@ class Folder(Base, FilesystemObject):
         @return: the new created File
         """
         file = File(folder=self, name=name, hash=fhash, mtime=mtime, size=size, host=self.host)
-        session().add(file)
-        session().flush()
         logger.debug('Created new Object: %r' % file)
         return file
 
-    def child_by_name(self, name):
+    def child_by_name(self, name, session):
         """
+        @param session: The Session used for Querying
         @param name: the name
         @return: The File or folder
         """
-        obj = session().query(File).filter(and_(File.name == name, File.folder_id == self.id)).first()
+        obj = session.query(File).filter(and_(File.name == name, File.folder_id == self.id)).first()
         if None is obj:
-            obj = session().query(Folder).filter(and_(Folder.name == name, Folder.parent_id == self.id)).first()
+            obj = session.query(Folder).filter(and_(Folder.name == name, Folder.parent_id == self.id)).first()
         if obj is not None:
             logger.debug('Restored Object from Database: %r' % obj)
         else:
@@ -410,11 +395,21 @@ def _matching_chars(left, right):
     return index
 
 
-def remove_surrogate_escaping(string, method='xmlcharrefreplace'):
+def fix_encoding(string, method='xmlcharrefreplace'):
+    """
+    @param string: The String you want to escape
+    @param method: the method used to correct the string, valid Values are:
+                   'ignore', 'replace', 'backslashreplace', 'xmlcharrefreplace'
+    @return: The escaped String
+    """
     assert method in ('ignore', 'replace', 'backslashreplace', 'xmlcharrefreplace'), 'invalid removal method'
     return string.encode('utf-8', method).decode('utf-8')
 
 
 def restore_utf8(string):
+    """
+    @param string: a String with encoded with 'xmlcharrefreplace'
+    @return: The Original UTF-8 String
+    """
     parser = HTMLParser()
     return parser.unescape(string)

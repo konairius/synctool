@@ -11,26 +11,27 @@ from multiprocessing import Pool
 import socket
 import sys
 from time import sleep
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, and_
 from sqlalchemy.orm import sessionmaker
-from base import set_session, session, HashRequest, File, remove_surrogate_escaping
+from base import HashRequest, File, fix_encoding, Host, Region
 
 __author__ = 'konsti'
 logger = logging.getLogger(__name__)
 
 
-def calculate_hash(request):
+def calculate_hash(ip, port, server_id):
     """
-    @param request: The HashRequest MUST be locked in the database
+    @param ip: The Server IP
+    @param port: The Port the File is served on
+    @param server_id: The database server_id
+    @return: the hash
     """
-    if not request.locked:
-        raise RuntimeError('%s is not locked' % request)
-
-    logger.info('Calculating hash for: %s ' % request)
+    logger.info('Calculating hash for: %s ' % server_id)
 
     sock = socket.socket()
-    sock.connect((request.server.ip, request.server.port))
-    sock.send(bytes('%s\n' % request.server.id, encoding='ascii'))
+    sock.connect((ip, port))
+    # noinspection PyArgumentList
+    sock.send(bytes('%s\n' % server_id, encoding='ascii'))
     sock.settimeout(5000)
     try:
         _hash = md5()
@@ -45,58 +46,75 @@ def calculate_hash(request):
     return _hash.hexdigest()
 
 
-def get_request():
+def get_request(session_maker):
     """
+    @param session_maker: The SQLAlchemy Session Maker
     @return: a random request guarantied to be locked and unique
     """
+    session = session_maker()
+    me = Host.by_name(socket.gethostname(), session)
+    if me.region is not None:
+        # noinspection PyComparisonWithNone
+        query = session.query(HashRequest).join(HashRequest.host).join(Host.region).filter(
+            and_(HashRequest.locked == False, HashRequest.server != None,
+                 Region.id == me.region.id)).with_for_update()
+    else:
+        # noinspection PyComparisonWithNone
+        query = session.query(HashRequest).join(HashRequest.host).filter(
+            and_(HashRequest.locked == False, HashRequest.server != None,
+                 HashRequest.host == me)).with_for_update()
     try:
-        for request in session().query(HashRequest).filter(HashRequest.locked == False).with_for_update():
-            if request.server is not None:
-                request.locked = True
-                session().commit()
-                return request
-    except Exception as e:
-        logger.error(e)
+        request = query.first()
+        if request is None:
+            return None
+        request.locked = True
+        session.commit()
+        return request
+    except Exception as error:
+        session.rollback()
+        raise error
+
+    finally:
+        session.close()
 
 
-def work():
+def work(session_maker):
     """
     This is where the work is done
+    @param session_maker: The SQLAlchemy Session Maker
     """
-    request = get_request()
+    request = get_request(session_maker)
+    session = session_maker()
     if request is None:
         return False
     try:
-        fhash = calculate_hash(request)
+        request = session.merge(request)
+        fhash = calculate_hash(request.server.ip, request.server.port, request.server.id)
 
-        file = File(name=remove_surrogate_escaping(request.name), folder=request.folder, mtime=request.mtime,
+        file = File(name=fix_encoding(request.name), folder=request.folder, mtime=request.mtime,
                     size=request.size,
                     host=request.host, hash=fhash)
-        session().add(file)
-        session().flush()
+        session.add(file)
+        session.delete(request.server)
+        session.delete(request)
+        session.commit()
     except Exception as e:
         logger.exception(e)
-    finally:
-        #we failed, the server is probably down,
-        #we remove the request an server, if it is needed it will be recreated
-        request.server.delete()
-        request.delete()
-        session().commit()
+        session.rollback()
+
     return True
 
 
-def daemon(interval, database):
+def daemon(args):
     """
-    @param database: The database used for Communication
-    @param interval: Integer, seconds between to scan runs
+    @param args: Args namespace as returned by argparse
     """
 
-    database = create_engine(database, echo=False)
-    s = sessionmaker(bind=database)()
-    set_session(s)
+    database = create_engine(args.database, echo=False)
+    session_maker = sessionmaker(bind=database)
     while True:
-        if not work():
-            sleep(interval)
+        if not work(session_maker):
+            sleep(args.interval)
 
 
 def main(args=sys.argv[1:]):
@@ -117,11 +135,9 @@ def main(args=sys.argv[1:]):
     else:
         logging.basicConfig(level=logging.INFO)
 
-    #daemon(args.interval, args.database)
-
     with Pool(processes=args.number) as pool:
         for _ in range(args.number):
-            pool.apply_async(daemon, args=(args.interval, args.database))
+            pool.apply_async(daemon, args=(args,))
         pool.close()
         pool.join()
 

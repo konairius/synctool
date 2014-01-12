@@ -11,8 +11,9 @@ import sys
 from sqlalchemy import create_engine
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm.exc import NoResultFound
 
-from base import Base, set_session, Host, remove_surrogate_escaping
+from base import Base, Host, fix_encoding, Region
 
 
 __author__ = 'konsti'
@@ -27,9 +28,11 @@ def main(args=sys.argv[1:]):
     """
     parser = argparse.ArgumentParser(description='Configuration tool')
     parser.add_argument('-d', '--database', type=str, metavar='"Connection String"', required=True)
-    parser.add_argument('--add', dest='add', type=str, metavar='URI',
+    parser.add_argument('-n', '--name', type=str, metavar='"HOSTNAME"', default=socket.gethostname())
+    parser.add_argument('-r', '--region', type=str, metavar='"HOSTNAME"', default=None)
+    parser.add_argument('--add', dest='add', type=str, metavar='PATH',
                         help='The directory you want to add to the Database', action='append')
-    parser.add_argument('--remove', dest='remove', type=str, metavar='URI',
+    parser.add_argument('--remove', dest='remove', type=str, metavar='PATH',
                         help='The root you want to remove from the Database', action='append')
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--create_schema', action='store_true')
@@ -50,34 +53,51 @@ def main(args=sys.argv[1:]):
         Base.metadata.create_all(database)
 
     session = sessionmaker(bind=database)()
-    set_session(session)
+
+    if args.region is not None:
+        try:
+            region = Region.by_name(name=args.region.lower(), session=session)
+        except NoResultFound:
+            region = Region.create_new(name=args.region.lower())
+            session.add(region)
+    else:
+        region = None
 
     try:
-        if args.add is not None:
-            host = Host.by_name(socket.gethostname())
-            for root_dir in args.add:
-                root_dir = remove_surrogate_escaping(root_dir)
-                try:
-                    host.add_root(root_dir)
-                except AttributeError as error:
-                    logger.error(error)
+        host = Host.by_name(args.name, session)
+    except NoResultFound:
+        logger.info('Host not found, creating new One')
+        host = Host.create_new(name=args.name, region=region)
+        session.add(host)
 
-        if args.remove is not None:
-            host = Host.by_name(socket.gethostname())
-            for root_dir in args.remove:
-                root_dir = remove_surrogate_escaping(root_dir)
-                try:
-                    host.remove_root(root_dir)
-                except AttributeError as error:
-                    logger.error(error)
+    if host.region != region:
+        host.region = region
 
+    if args.add is not None:
+        for root_dir in args.add:
+            root_dir = fix_encoding(root_dir)
+            try:
+                root = host.add_root(root_dir, session)
+                session.add(root)
+            except AttributeError as error:
+                logger.error(error)
+
+    if args.remove is not None:
+        for root_dir in args.remove:
+            root_dir = fix_encoding(root_dir)
+            try:
+                host.remove_root(root_dir, session)
+            except AttributeError as error:
+                logger.error(error)
+
+    try:
+        session.commit()
     except OperationalError as error:
         logger.error(error)
         session.rollback()
         return -1
-
-    session.commit()
-    session.close_all()
+    finally:
+        session.close_all()
     return 0
 
 

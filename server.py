@@ -12,7 +12,8 @@ import threading
 from time import sleep
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, subqueryload
-from base import set_session, Host, Server, session
+from sqlalchemy.orm.exc import NoResultFound
+from base import Host, Server
 
 __author__ = 'konsti'
 logger = logging.getLogger(__name__)
@@ -28,15 +29,18 @@ class TCPRequestHandler(socketserver.StreamRequestHandler):
         Called by super
         """
         logger.info('Serving Request from %s:%s' % self.client_address)
+        session = self.server.session_maker()
         try:
+
             server_id = int(self.rfile.readline().strip())
-            server = Server.by_id(server_id)
+            server = Server.by_id(server_id, session)
             with open(server.request.path, 'rb') as data:
                 for chunk in iter(lambda: data.read(2 ** 14), b''):
                     self.request.sendall(chunk)
         except Exception as e:
             logger.exception(e)
         finally:
+            session.close()
             self.request.close()
 
 
@@ -47,39 +51,52 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
 
 
-def announce_server(request, ip, port):
+def announce_server(request, ip, port, session):
     """
     Creates a database entry to announce the server is severing a file
     @param request: the request that is going to be served
     @param ip: the ip on which the server is serving
     @param port: the port the server will listen on
+    @param session: The Session used for Querying
     """
-    s = session().query(Server).filter(Server.request == request).first()
-    if s is None:
+    try:
+        session.query(Server).filter(Server.request == request).one()
+    except NoResultFound:
         s = Server(ip=ip, port=port, request_id=request.id)
-        session().add(s)
         logger.info('Serving requests: %s' % s)
+        return s
 
 
-def daemon(interval, port):
+def daemon(args):
     """
-    @param port: the port the server will listen on
-    @param interval: Integer, seconds between to scan runs
+    @param args: Args namespace as returned by argparse
     """
-    host = session().query(Host).options(subqueryload(Host.requests)).filter(Host.name == socket.gethostname()).first()
-    server = ThreadedTCPServer((socket.gethostname(), port), TCPRequestHandler)
+
+    database = create_engine(args.database, echo=False)
+    session_maker = sessionmaker(bind=database)
+    session = session_maker()
+
+    host = session.query(Host).options(subqueryload(Host.requests)).filter(Host.name == socket.gethostname()).first()
+    server = ThreadedTCPServer((socket.gethostname(), args.port), TCPRequestHandler)
+    server.session_maker = session_maker
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
     server_thread.start()
     logger.info('Starting TCPServer in thread: %s' % server_thread.name)
     ip, port = server.server_address
+
     while True:
         logger.debug('Updating Request list')
-        for request in host.requests:
-            announce_server(request, ip, port)
-        session().flush()
-        session().commit()
-        sleep(interval)
+        try:
+            announces = list()
+            for request in host.requests:
+                announces.append(announce_server(request, ip, port, session))
+            session.add_all(filter(None, announces))
+            session.commit()
+        except Exception as e:
+            logger.exception(e)
+            session.rollback()
+        sleep(args.interval)
     server.shutdown()
 
 
@@ -101,10 +118,7 @@ def main(args=sys.argv[1:]):
     else:
         logging.basicConfig(level=logging.INFO)
 
-    database = create_engine(args.database, echo=False)
-    s = sessionmaker(bind=database)()
-    set_session(s)
-    daemon(args.interval, args.port)
+    daemon(args)
 
 
 if __name__ == '__main__':
