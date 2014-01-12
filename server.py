@@ -11,7 +11,7 @@ import sys
 import threading
 from time import sleep
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, subqueryload
 from base import set_session, Host, Server, session
 
 __author__ = 'konsti'
@@ -56,11 +56,9 @@ def announce_server(request, ip, port):
     """
     s = session().query(Server).filter(Server.request == request).first()
     if s is None:
-        s = Server(ip=ip, port=port, request=request)
+        s = Server(ip=ip, port=port, request_id=request.id)
         session().add(s)
-        session().flush()
         logger.info('Serving requests: %s' % s)
-        session().commit()
 
 
 def daemon(interval, port):
@@ -68,7 +66,7 @@ def daemon(interval, port):
     @param port: the port the server will listen on
     @param interval: Integer, seconds between to scan runs
     """
-    host = Host.by_name(socket.gethostname())
+    host = session().query(Host).options(subqueryload(Host.requests)).filter(Host.name == socket.gethostname()).first()
     server = ThreadedTCPServer((socket.gethostname(), port), TCPRequestHandler)
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
@@ -79,6 +77,8 @@ def daemon(interval, port):
         logger.debug('Updating Request list')
         for request in host.requests:
             announce_server(request, ip, port)
+        session().flush()
+        session().commit()
         sleep(interval)
     server.shutdown()
 
