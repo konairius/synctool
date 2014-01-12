@@ -28,12 +28,16 @@ class TCPRequestHandler(socketserver.StreamRequestHandler):
         Called by super
         """
         logger.info('Serving Request from %s:%s' % self.client_address)
-        server_id = int(self.rfile.readline().strip())
-        server = Server.by_id(server_id)
-        with open(server.request.path, 'rb') as data:
-            for chunk in iter(lambda: data.read(2 ** 14), b''):
-                self.request.sendall(chunk)
-        self.request.close()
+        try:
+            server_id = int(self.rfile.readline().strip())
+            server = Server.by_id(server_id)
+            with open(server.request.path, 'rb') as data:
+                for chunk in iter(lambda: data.read(2 ** 14), b''):
+                    self.request.sendall(chunk)
+        except Exception as e:
+            logger.exception(e)
+        finally:
+            self.request.close()
 
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
@@ -56,6 +60,7 @@ def announce_server(request, ip, port):
         session().add(s)
         session().flush()
         logger.info('Serving requests: %s' % s)
+        session().commit()
 
 
 def daemon(interval, port):
@@ -74,7 +79,6 @@ def daemon(interval, port):
         logger.debug('Updating Request list')
         for request in host.requests:
             announce_server(request, ip, port)
-        session().commit()
         sleep(interval)
     server.shutdown()
 
