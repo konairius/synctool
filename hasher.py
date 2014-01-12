@@ -31,7 +31,7 @@ def calculate_hash(request):
     sock = socket.socket()
     sock.connect((request.server.ip, request.server.port))
     sock.send(bytes('%s\n' % request.server.id, encoding='ascii'))
-    sock.settimeout(5)
+    sock.settimeout(5000)
     try:
         _hash = md5()
         while True:
@@ -65,18 +65,24 @@ def work():
     """
     request = get_request()
     if request is None:
-        return
-    fhash = calculate_hash(request)
+        return False
+    try:
+        fhash = calculate_hash(request)
 
-    file = File(name=remove_surrogate_escaping(request.name), folder=request.folder, mtime=request.mtime,
-                size=request.size,
-                host=request.host, hash=fhash)
-
-    session().add(file)
-    session().flush()
-    request.server.delete()
-    request.delete()
-    session().commit()
+        file = File(name=remove_surrogate_escaping(request.name), folder=request.folder, mtime=request.mtime,
+                    size=request.size,
+                    host=request.host, hash=fhash)
+        session().add(file)
+        session().flush()
+    except Exception as e:
+        logger.exception(e)
+    finally:
+        #we failed, the server is probably down,
+        #we remove the request an server, if it is needed it will be recreated
+        request.server.delete()
+        request.delete()
+        session().commit()
+    return True
 
 
 def daemon(interval, database):
@@ -89,9 +95,8 @@ def daemon(interval, database):
     s = sessionmaker(bind=database)()
     set_session(s)
     while True:
-        work()
-        s.commit()
-        sleep(interval)
+        if not work():
+            sleep(interval)
 
 
 def main(args=sys.argv[1:]):
