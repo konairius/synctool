@@ -75,10 +75,13 @@ def daemon(interval, port):
     ip, port = server.server_address
     while True:
         logger.debug('Updating Request list')
-        for request in host.requests:
-            announce_server(request, ip, port)
-        session().flush()
-        session().commit()
+        try:
+            for request in host.requests:
+                announce_server(request, ip, port)
+            session().flush()
+            session().commit()
+        except Exception as e:
+            logger.exception(e)
         sleep(interval)
     server.shutdown()
 
