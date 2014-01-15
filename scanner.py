@@ -44,7 +44,7 @@ def scan(folder, session):
         raise AttributeError('%r is not local' % folder)
 
     for name in listdir(folder.path):
-        archive = folder.child_by_name(fix_encoding(name), session)
+        archive = folder.child_by_name(fix_encoding(name), session, eager=True)
         path = join(folder.path, name)
 
         if isfile(restore_utf8(path)):

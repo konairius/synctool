@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, and_, DateTime, Boolean, BigInteger, Unicode
-from sqlalchemy.orm import relationship, backref
+from sqlalchemy.orm import relationship, backref, joinedload_all
 
 Base = declarative_base()
 
@@ -287,19 +287,24 @@ class Folder(Base, FilesystemObject):
         logger.debug('Created new Object: %r' % file)
         return file
 
-    def child_by_name(self, name, session):
+    def child_by_name(self, name, session, eager=False):
         """
         @param session: The Session used for Querying
         @param name: the name
+        @param eager: If True, subfolders will be loaded as well
         @return: The File or folder
         """
         obj = session.query(File).filter(and_(File.name == name, File.folder_id == self.id)).first()
         if None is obj:
-            obj = session.query(Folder).filter(and_(Folder.name == name, Folder.parent_id == self.id)).first()
-        if obj is not None:
-            logger.debug('Restored Object from Database: %r' % obj)
-        else:
-            logger.debug('Failed to find object with name: %s' % name)
+            if eager:
+                obj = session.query(Folder).filter(and_(Folder.name == name, Folder.parent_id == self.id)).first()
+            else:
+                obj = session.query(Folder).options(
+                    joinedload_all()).filter(and_(Folder.name == name, Folder.parent_id == self.id)).first()
+            if obj is not None:
+                logger.debug('Restored Object from Database: %r' % obj)
+            else:
+                logger.debug('Failed to find object with name: %s' % name)
         return obj
 
 
