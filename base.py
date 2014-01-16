@@ -46,7 +46,7 @@ class DBObject(object):
         @return: the Object
         @raise AttributeError: if the object was not found
         """
-        obj = session.query(cls).filter_by(id=obj_id).first()
+        obj = session.query(cls).filter_by(id=obj_id).one()
         if None is obj:
             raise AttributeError('%s has no object with id %s' % (cls.__name__, obj_id))
         logger.debug('Restored Object from Database: %r' % obj)
@@ -294,13 +294,15 @@ class Folder(Base, FilesystemObject):
         @param eager: If True, subfolders will be loaded as well
         @return: The File or folder
         """
-        obj = session.query(File).filter(and_(File.name == name, File.folder_id == self.id)).first()
+        obj = session.query(File).filter(and_(File.name == name, File.folder_id == self.id)).with_lockmode(None).first()
         if None is obj:
             if eager:
-                obj = session.query(Folder).filter(and_(Folder.name == name, Folder.parent_id == self.id)).first()
+                obj = session.query(Folder).filter(
+                    and_(Folder.name == name, Folder.parent_id == self.id)).with_lockmode(None).first()
             else:
                 obj = session.query(Folder).options(
-                    joinedload_all()).filter(and_(Folder.name == name, Folder.parent_id == self.id)).first()
+                    joinedload_all()).filter(and_(Folder.name == name, Folder.parent_id == self.id)).with_lockmode(
+                    None).first()
             if obj is not None:
                 logger.debug('Restored Object from Database: %r' % obj)
             else:
