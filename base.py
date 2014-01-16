@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, and_, DateTime, Boolean, BigInteger, Unicode
-from sqlalchemy.orm import relationship, backref, joinedload_all
+from sqlalchemy.orm import relationship, backref
 
 Base = declarative_base()
 
@@ -70,7 +70,7 @@ class FilesystemObject(DBObject):
             raise AttributeError('%s is not a valid URI' % uri)
         hostname, path = uri.split(sep='::', maxsplit=1)
         host = Host.by_name(hostname, session=session)
-        obj = host.descendant_by_path(path)
+        obj = host.descendant_by_path(path, session=session)
         logger.debug('Restored object from Database: %r' % obj)
         return obj
 
@@ -154,11 +154,12 @@ class Host(Base, DBObject):
             raise e
         return obj
 
-    def descendant_by_path(self, path):
+    def descendant_by_path(self, path, session):
         """
         This will try to find the root closets to the target,
         if it didn't find a valid root, it will try to create one,
         witch will fail if path is not local.
+        @param session: The Session used for Querying
         @param path: the path you're looking for
         @return: the FilesystemObject you're looking for
         """
@@ -181,7 +182,7 @@ class Host(Base, DBObject):
                 name, rel_path = tuple(rel_path.split(sep=os.sep, maxsplit=1))
             else:
                 name, rel_path = rel_path, None
-            best = best.child_by_name(name)
+            best = best.child_by_name(name, session=session)
         return best
 
     def __str__(self):
@@ -291,22 +292,19 @@ class Folder(Base, FilesystemObject):
         """
         @param session: The Session used for Querying
         @param name: the name
-        @param eager: If True, subfolders will be loaded as well
+        @param eager: Ignored for now
         @return: The File or folder
         """
         obj = session.query(File).filter(and_(File.name == name, File.folder_id == self.id)).with_lockmode(None).first()
         if None is obj:
-            if eager:
-                obj = session.query(Folder).filter(
-                    and_(Folder.name == name, Folder.parent_id == self.id)).with_lockmode(None).first()
-            else:
-                obj = session.query(Folder).options(
-                    joinedload_all()).filter(and_(Folder.name == name, Folder.parent_id == self.id)).with_lockmode(
-                    None).first()
-            if obj is not None:
-                logger.debug('Restored Object from Database: %r' % obj)
-            else:
-                logger.debug('Failed to find object with name: %s' % name)
+            obj = session.query(Folder).filter(
+                and_(Folder.name == name, Folder.parent_id == self.id)).with_lockmode(None).first()
+
+        if obj is not None:
+            logger.debug('Restored Object from Database: %r' % obj)
+        else:
+            logger.debug('Failed to find object with name: %s' % name)
+
         return obj
 
 
