@@ -40,6 +40,7 @@ def scan(folder, session):
     delete_objects = list()
     add_objects = list()
 
+    session.begin_nested()
     if not folder.host.is_local:
         raise AttributeError('%r is not local' % folder)
 
@@ -60,7 +61,7 @@ def scan(folder, session):
         elif isdir(restore_utf8(path)):
             if archive is None:
                 archive = folder.add_folder(fix_encoding(name))
-            add, delete = scan(archive, session)
+            add, delete = scan(folder=archive, session=session)
 
             add_objects += add
             delete_objects += delete
@@ -73,6 +74,7 @@ def scan(folder, session):
             if not isdir(restore_utf8(child.path)):
                 delete_objects.append(child)
 
+    session.commit()
     return filter(None, add_objects), filter(None, delete_objects)
 
 
