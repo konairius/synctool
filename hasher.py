@@ -11,7 +11,7 @@ from multiprocessing import Pool
 import socket
 import sys
 from time import sleep
-from sqlalchemy import create_engine, and_
+from sqlalchemy import create_engine, and_, func
 from sqlalchemy.orm import sessionmaker
 from base import HashRequest, File, fix_encoding, Host, Region
 
@@ -57,12 +57,12 @@ def get_request(session_maker):
         # noinspection PyComparisonWithNone
         query = session.query(HashRequest).join(HashRequest.host).join(Host.region).filter(
             and_(HashRequest.locked == False, HashRequest.server != None,
-                 Region.id == me.region.id)).with_for_update()
+                 Region.id == me.region.id)).order_by(func.random()).with_for_update()
     else:
         # noinspection PyComparisonWithNone
         query = session.query(HashRequest).join(HashRequest.host).filter(
             and_(HashRequest.locked == False, HashRequest.server != None,
-                 HashRequest.host == me)).with_for_update()
+                 HashRequest.host == me)).order_by(func.random()).with_for_update()
     try:
         request = query.first()
         if request is None:
