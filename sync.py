@@ -6,7 +6,6 @@ This is a Tool to Evaluate a Synctool database
 import argparse
 from collections import namedtuple, Sequence
 import logging
-import os
 import sys
 
 from sqlalchemy import create_engine
@@ -46,7 +45,7 @@ class ChangeSet(Sequence):
         for file in source.files:
             dst_file = dst.child_by_name(file.name, session)
             if dst_file is None:
-                changes.append(Change(type='COPY', source=file.uri, target='%s%s%s' % (dst.uri, os.sep, file.name)))
+                changes.append(Change(type='COPY', source=file.uri, target='%s%s' % (dst.uri, file.name)))
             elif file.hash == dst_file.hash:
                 pass
             else:
@@ -58,7 +57,7 @@ class ChangeSet(Sequence):
         for folder in source.folders:
             dst_folder = dst.child_by_name(folder.name, session)
             if dst_folder is None:
-                changes.append(Change(type='COPY', source=folder.uri, target='%s%s%s' % (dst.uri, os.sep, folder.name)))
+                changes.append(Change(type='COPY', source=folder.uri, target='%s%s' % (dst.uri, folder.name)))
             else:
                 changes += ChangeSet._get_changes(source=folder, dst=dst_folder, session=session)
 
@@ -74,6 +73,20 @@ class ChangeSet(Sequence):
 
         return changes
 
+    def get_string(self, fmt: str):
+        """
+        @param fmt: a String containing <SOURCE>, <TARGET> and <TYPE>
+        @return a String containing all changes in the specified format
+        """
+        output = str()
+        for change in self:
+            buffer = fmt
+            buffer = buffer.replace('<SOURCE>', change.source)
+            buffer = buffer.replace('<TARGET>', change.target)
+            buffer = buffer.replace('<TYPE>', change.type)
+            output += (buffer + '\n')
+        return output
+
 
 def main(args=sys.argv[1:]):
     """
@@ -85,6 +98,7 @@ def main(args=sys.argv[1:]):
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--source', type=str, metavar='URI', required=True)
     parser.add_argument('--dst', type=str, metavar='URI', required=True)
+    parser.add_argument('--format', type=str, metavar='FORMAT', default='<SOURCE>::<TYPE>::<TARGET>')
 
     args = parser.parse_args(args)
     if args.debug:
@@ -106,8 +120,7 @@ def main(args=sys.argv[1:]):
         logger.info('Target: %s', dst)
 
         changes = ChangeSet(source=source, dst=dst, session=session)
-        for change in changes:
-            print(change)
+        print(changes.get_string(args.format))
 
     except Exception as e:
         logger.exception(e)
