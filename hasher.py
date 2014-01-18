@@ -8,6 +8,7 @@ from _md5 import md5
 import argparse
 import logging
 from multiprocessing import Pool
+import os
 import socket
 import sys
 from time import sleep
@@ -113,6 +114,7 @@ def daemon(args):
     database = create_engine(args.database, echo=False)
     session_maker = sessionmaker(bind=database)
     while True:
+        logger.debug('New Hashing run of: %s', (os.getpid()))
         if not work(session_maker):
             sleep(args.interval)
 
