@@ -87,6 +87,13 @@ class ChangeSet(Sequence):
             output += (buffer + '\n')
         return output
 
+    def get_size(self, session):
+        size = 0
+        for change in self:
+            if change.type in ('COPY', 'CONFLICT', 'REPLACE'):
+                size += Folder.by_uri(change.source, session).size
+        return size
+
 
 def main(args=sys.argv[1:]):
     """
@@ -120,7 +127,7 @@ def main(args=sys.argv[1:]):
         logger.info('Target: %s', dst)
 
         changes = ChangeSet(source=source, dst=dst, session=session)
-        print(changes.get_string(args.format))
+        print('%sGB' % (changes.get_size(session)/2**30))
 
     except Exception as e:
         logger.exception(e)

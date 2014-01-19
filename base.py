@@ -71,7 +71,7 @@ class FilesystemObject(DBObject):
         hostname, path = uri.split(sep='::', maxsplit=1)
         host = Host.by_name(hostname, session=session)
         obj = host.descendant_by_path(path, session=session)
-        logger.debug('Restored object from Database: %r' % obj)
+        logger.debug('Restored Object from Database: %r' % obj)
         return obj
 
 
@@ -176,13 +176,15 @@ class Host(Base, DBObject):
         if best is None:
             raise NoResultFound('%s is not in a valid root of %s' % (path, self))
 
-        rel_path = path.lstrip(best.path)
+        rel_path = path[len(best.path):]
         while best.path != path and rel_path is not None and rel_path != os.sep and rel_path != '':
             if os.sep in rel_path:
                 name, rel_path = tuple(rel_path.split(sep=os.sep, maxsplit=1))
             else:
                 name, rel_path = rel_path, None
             best = best.child_by_name(name, session=session)
+            if best is None:
+                raise NoResultFound('%s is not in %s' % (path, self))
         return best
 
     def __str__(self):
@@ -258,6 +260,15 @@ class Folder(Base, FilesystemObject):
         @return:the uri(<hostname>::<path>
         """
         return '%s::%s' % (self.host.name, self.path)
+
+    @property
+    def size(self):
+        result = 0
+        for file in self.files:
+            result += file.size
+        for folder in self.folders:
+            result += folder.size
+        return result
 
     def __str__(self):
         return self.uri
