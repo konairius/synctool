@@ -8,10 +8,11 @@ from collections import namedtuple, Sequence
 import logging
 import sys
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, and_
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm.exc import NoResultFound
 
-from base import Folder
+from base import Folder, File
 
 
 __author__ = 'konsti'
@@ -45,7 +46,12 @@ class ChangeSet(Sequence):
         for file in source.files:
             dst_file = dst.child_by_name(file.name, session)
             if dst_file is None:
-                changes.append(Change(type='COPY', source=file.uri, target='%s%s' % (dst.uri, file.name)))
+                obj = session.query(File).filter(and_(File.hash == file.hash, File.host == dst.host)).first()
+                if obj is None:
+                    changes.append(Change(type='COPY', source=file.uri, target='%s%s' % (dst.uri, file.name)))
+                else:
+                    changes.append(Change(type='LCOPY', source=obj.uri, target='%s%s' % (dst.uri, file.name)))
+
             elif file.hash == dst_file.hash:
                 pass
             else:
@@ -88,6 +94,10 @@ class ChangeSet(Sequence):
         return output
 
     def get_size(self, session):
+        """
+        @param session: The Session used for Querying
+        @return: The size of the synced files in byte
+        """
         size = 0
         for change in self:
             if change.type in ('COPY', 'CONFLICT', 'REPLACE'):

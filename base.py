@@ -243,7 +243,8 @@ class Folder(Base, FilesystemObject):
     host = relationship('Host', cascade='all')
 
     parent_id = Column(Integer, ForeignKey('folder.id'))
-    parent = relationship('Folder', remote_side=[id, host_id], backref='folders', cascade='all')
+    parent = relationship('Folder', remote_side=[id, host_id], backref=backref('folders', lazy='subquery'),
+                          cascade='all', lazy='subquery')
 
     @property
     def path(self):
@@ -336,13 +337,15 @@ class File(Base, FilesystemObject):
     host = relationship('Host')
 
     folder_id = Column(Integer, ForeignKey('folder.id'), nullable=False)
-    folder = relationship('Folder', backref=backref('files'))
+    folder = relationship('Folder', backref=backref('files', lazy='subquery'), lazy='subquery')
 
     @property
     def path(self):
         """
         @return: the path, honorees the local path separator
         """
+        if self.folder is None:
+            return restore_utf8(self.name)
         return '%s%s' % (self.folder.path, restore_utf8(self.name))
 
     @property
