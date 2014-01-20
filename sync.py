@@ -10,7 +10,6 @@ import sys
 
 from sqlalchemy import create_engine, and_
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm.exc import NoResultFound
 
 from base import Folder, File
 
@@ -48,17 +47,22 @@ class ChangeSet(Sequence):
             if dst_file is None:
                 obj = session.query(File).filter(and_(File.hash == file.hash, File.host == dst.host)).first()
                 if obj is None:
-                    changes.append(Change(type='COPY', source=file.uri, target='%s%s' % (dst.uri, file.name)))
+                    change = Change(type='COPY', source=file.uri, target='%s%s' % (dst.uri, file.name))
                 else:
-                    changes.append(Change(type='LCOPY', source=obj.uri, target='%s%s' % (dst.uri, file.name)))
+                    change = Change(type='LCOPY', source=obj.uri, target='%s%s' % (dst.uri, file.name))
+
+                logger.info('Adding change: %s' % str(change))
+                changes.append(change)
 
             elif file.hash == dst_file.hash:
                 pass
             else:
                 if file.mtime > dst_file.mtime:
-                    changes.append(Change(type='REPLACE', source=file.uri, target=dst_file.uri))
+                    change = Change(type='REPLACE', source=file.uri, target=dst_file.uri)
                 else:
-                    changes.append(Change(type='CONFLICT', source=file.uri, target=dst_file.uri))
+                    change = Change(type='CONFLICT', source=file.uri, target=dst_file.uri)
+                logger.info('Adding change: %s' % str(change))
+                changes.append(change)
 
         for folder in source.folders:
             dst_folder = dst.child_by_name(folder.name, session)
@@ -70,12 +74,16 @@ class ChangeSet(Sequence):
         for file in dst.files:
             src_file = source.child_by_name(file.name, session)
             if src_file is None:
-                changes.append(Change(type='DELETE', source='', target=file.uri))
+                change = Change(type='DELETE', source='', target=file.uri)
+                logger.info('Adding change: %s' % str(change))
+                changes.append(change)
 
         for folder in dst.folders:
             src_folder = source.child_by_name(folder.name, session)
             if src_folder is None:
-                changes.append(Change(type='DELETE', source='', target=folder.uri))
+                change = Change(type='DELETE', source='', target=folder.uri)
+                logger.info('Adding change: %s' % str(change))
+                changes.append(change)
 
         return changes
 
