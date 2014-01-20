@@ -45,11 +45,13 @@ class ChangeSet(Sequence):
         for file in source.files:
             dst_file = dst.child_by_name(file.name, session)
             if dst_file is None:
+                dst_file = File(name=file.name, host=dst.host, folder=dst, hash=file.hash, mtime=file.mtime,
+                                size=file.size)
                 obj = session.query(File).filter(and_(File.hash == file.hash, File.host == dst.host)).first()
                 if obj is None:
-                    change = Change(type='COPY', source=file.uri, target='%s%s' % (dst.uri, file.name))
+                    change = Change(type='COPY', source=file, target=dst_file)
                 else:
-                    change = Change(type='LCOPY', source=obj.uri, target='%s%s' % (dst.uri, file.name))
+                    change = Change(type='LCOPY', source=obj, target=dst_file)
 
                 logger.info('Adding change: %s' % str(change))
                 changes.append(change)
@@ -58,30 +60,31 @@ class ChangeSet(Sequence):
                 pass
             else:
                 if file.mtime > dst_file.mtime:
-                    change = Change(type='REPLACE', source=file.uri, target=dst_file.uri)
+                    change = Change(type='REPLACE', source=file, target=dst_file)
                 else:
-                    change = Change(type='CONFLICT', source=file.uri, target=dst_file.uri)
+                    change = Change(type='CONFLICT', source=file, target=dst_file)
                 logger.info('Adding change: %s' % str(change))
                 changes.append(change)
 
         for folder in source.folders:
             dst_folder = dst.child_by_name(folder.name, session)
             if dst_folder is None:
-                changes.append(Change(type='COPY', source=folder.uri, target='%s%s' % (dst.uri, folder.name)))
+                dst_folder = Folder(name=folder.name, parent=dst, host=dst.host)
+                changes.append(Change(type='COPY', source=folder, target=dst_folder))
             else:
                 changes += ChangeSet._get_changes(source=folder, dst=dst_folder, session=session)
 
         for file in dst.files:
             src_file = source.child_by_name(file.name, session)
             if src_file is None:
-                change = Change(type='DELETE', source='', target=file.uri)
+                change = Change(type='DELETE', source='', target=file)
                 logger.info('Adding change: %s' % str(change))
                 changes.append(change)
 
         for folder in dst.folders:
             src_folder = source.child_by_name(folder.name, session)
             if src_folder is None:
-                change = Change(type='DELETE', source='', target=folder.uri)
+                change = Change(type='DELETE', source='', target=folder)
                 logger.info('Adding change: %s' % str(change))
                 changes.append(change)
 
@@ -101,15 +104,14 @@ class ChangeSet(Sequence):
             output += (buffer + '\n')
         return output
 
-    def get_size(self, session):
+    def get_size(self):
         """
-        @param session: The Session used for Querying
         @return: The size of the synced files in byte
         """
         size = 0
         for change in self:
             if change.type in ('COPY', 'CONFLICT', 'REPLACE'):
-                size += Folder.by_uri(change.source, session).size
+                size += change.source.size
         return size
 
 
@@ -145,7 +147,7 @@ def main(args=sys.argv[1:]):
         logger.info('Target: %s', dst)
 
         changes = ChangeSet(source=source, dst=dst, session=session)
-        print('%sGB' % (changes.get_size(session)/2**30))
+        print('%sGB' % (changes.get_size() / 2 ** 30))
 
     except Exception as e:
         logger.exception(e)
