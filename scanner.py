@@ -128,7 +128,7 @@ def main(args=sys.argv[1:]):
     parser = argparse.ArgumentParser(description='Scanner Tool')
     parser.add_argument('-d', '--database', type=str, metavar='"Connection String"', required=True)
     parser.add_argument('--debug', action='store_true')
-    parser.add_argument('-i', '--interval', type=int, metavar='SECONDS', default=3600,
+    parser.add_argument('-i', '--interval', type=int, metavar='SECONDS', default=36000,
                         help='Interval between two Scan runs, defaults to 10 hours')
     args = parser.parse_args(args)
     if args.debug:

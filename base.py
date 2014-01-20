@@ -264,6 +264,9 @@ class Folder(Base, FilesystemObject):
 
     @property
     def size(self):
+        """
+        @return: the size of the underlying structure
+        """
         result = 0
         for file in self.files:
             result += file.size
