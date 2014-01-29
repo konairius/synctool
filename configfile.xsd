@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+    <!-- Attribute declarations :-->
+
+    <xs:attribute name="hostname" type="xs:string"/>
+    <xs:attribute name="region" type="xs:string"/>
+    <xs:attribute name="database" type="xs:string"/>
+    <xs:attribute name="interval" type="xs:unsignedInt"/>
+
+
+    <!-- Part Configurations :-->
+    <xs:element name="folder">
+        <xs:complexType>
+            <xs:attribute name="global" type="xs:string"/>
+            <xs:attribute name="local" type="xs:string"/>
+            <!--True if this is the Owner of this Folder i.e. the folder is local-->
+            <xs:attribute name="mine" type="xs:boolean"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="hasher">
+        <xs:complexType>
+            <xs:attribute name="processes" type="xs:unsignedInt"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="scanner">
+        <xs:complexType>
+            <xs:attribute ref="interval"/>
+        </xs:complexType>
+    </xs:element>
+
+    <!-- Root Element :-->
+    <xs:element name="Host">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="folder" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="hasher" minOccurs="0" maxOccurs="1"/>
+            </xs:sequence>
+            <xs:attribute name="hostname" ref="hostname"/>
+            <xs:attribute name="region" ref="region"/>
+            <xs:attribute name="database" ref="database"/>
+        </xs:complexType>
+    </xs:element>
+
+</xs:schema>
