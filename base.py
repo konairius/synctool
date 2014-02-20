@@ -5,7 +5,9 @@ The Base Module where all Classes used by multiple Daemons are specified
 from html.parser import HTMLParser
 import os
 import socket
+
 from sqlalchemy.orm.exc import NoResultFound
+
 
 __author__ = 'konsti'
 
@@ -14,6 +16,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
+# noinspection PyPep8
 from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint, and_, DateTime, Boolean, BigInteger, Unicode
 from sqlalchemy.orm import relationship, backref
 
@@ -90,7 +93,6 @@ class Region(Base, DBObject):
         """
         return cls(name=name)
 
-
     @classmethod
     def by_name(cls, name, session):
         """
@@ -137,7 +139,6 @@ class Host(Base, DBObject):
         @param region: The region it is in
         """
         return cls(name=name, region=region)
-
 
     @classmethod
     def by_name(cls, name, session):
@@ -220,7 +221,7 @@ class Host(Base, DBObject):
         if not path[-1] == os.sep:
             path += os.sep
 
-        # noinspection PyComparisonWithNone
+        # noinspection PyComparisonWithNone,PyPep8
         old_root = session.query(Folder).filter(
             and_(Folder.name == path, Folder.host_id == self.id, Folder.parent_id == None)).first()
         if old_root is None:
@@ -303,6 +304,7 @@ class Folder(Base, FilesystemObject):
         logger.debug('Created new Object: %r' % file)
         return file
 
+    # noinspection PyUnusedLocal
     def child_by_name(self, name, session, eager=False):
         """
         @param session: The Session used for Querying

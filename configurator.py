@@ -13,6 +13,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.exc import NoResultFound
 
+import database_logging
 from base import Base, Host, fix_encoding, Region
 
 
@@ -38,6 +39,7 @@ def main(args=sys.argv[1:]):
     parser.add_argument('--create_schema', action='store_true')
     parser.add_argument('--clear_database', action='store_true')
     args = parser.parse_args(args)
+
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
         logger.debug('Configurator started with following arguments: %s' % args)
@@ -48,11 +50,14 @@ def main(args=sys.argv[1:]):
 
     if args.clear_database:
         Base.metadata.drop_all(database)
+        database_logging.Base.metadata.drop_all(database)
 
     if args.create_schema or args.clear_database:
         Base.metadata.create_all(database)
+        database_logging.Base.metadata.create_all(database)
 
     session = sessionmaker(bind=database)()
+    database_logging.DBSession = sessionmaker(bind=database)()
 
     if args.region is not None:
         try:

@@ -12,6 +12,7 @@ from sqlalchemy import create_engine, and_
 from sqlalchemy.orm import sessionmaker
 
 from base import Folder, File
+import database_logging
 
 
 __author__ = 'konsti'
@@ -128,17 +129,22 @@ def main(args=sys.argv[1:]):
     parser.add_argument('--format', type=str, metavar='FORMAT', default='<SOURCE>::<TYPE>::<TARGET>')
 
     args = parser.parse_args(args)
-    if args.debug:
-        logging.basicConfig(level=logging.DEBUG)
-        logger.debug('Tool started with following arguments: %s' % args)
-    else:
-        logging.basicConfig(level=logging.INFO)
 
     database = create_engine(args.database, echo=False)
 
     session_maker = sessionmaker(bind=database)
 
     session = session_maker()
+
+    database_logging.DBSession = session_maker()
+
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG, handlers=(database_logging.SQLAlchemyHandler(),
+                                                           logging.StreamHandler()))
+        logger.debug('Tool started with following arguments: %s' % args)
+    else:
+        logging.basicConfig(level=logging.INFO, handlers=(database_logging.SQLAlchemyHandler(),
+                                                          logging.StreamHandler()))
 
     try:
         source = Folder.by_uri(args.source, session)

@@ -8,6 +8,7 @@ and requests others to do the updates if necessary.
 import argparse
 from datetime import datetime
 from genericpath import isfile, getmtime, getsize, isdir
+import logging
 from os import listdir
 from os.path import join
 import socket
@@ -22,8 +23,6 @@ from base import Host, HashRequest, fix_encoding, restore_utf8
 
 
 __author__ = 'konsti'
-
-import logging
 
 logger = logging.getLogger(__name__)
 

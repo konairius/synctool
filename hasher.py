@@ -12,9 +12,12 @@ import os
 import socket
 import sys
 from time import sleep
+
 from sqlalchemy import create_engine, and_, func
 from sqlalchemy.orm import sessionmaker
+
 from base import HashRequest, File, fix_encoding, Host, Region
+
 
 __author__ = 'konsti'
 logger = logging.getLogger(__name__)
@@ -55,12 +58,12 @@ def get_request(session_maker):
     session = session_maker()
     me = Host.by_name(socket.gethostname(), session)
     if me.region is not None:
-        # noinspection PyComparisonWithNone
+        # noinspection PyComparisonWithNone,PyPep8
         query = session.query(HashRequest).join(HashRequest.host).join(Host.region).filter(
             and_(HashRequest.locked == False, HashRequest.server != None,
                  Region.id == me.region.id)).order_by(func.random()).with_for_update()
     else:
-        # noinspection PyComparisonWithNone
+        # noinspection PyComparisonWithNone,PyPep8
         query = session.query(HashRequest).join(HashRequest.host).filter(
             and_(HashRequest.locked == False, HashRequest.server != None,
                  HashRequest.host == me)).order_by(func.random()).with_for_update()

@@ -2,13 +2,14 @@
 """
 My unittest
 """
+import logging
 import os
 from tempfile import mkdtemp
+
 import configurator
 
-__author__ = 'konsti'
 
-import logging
+__author__ = 'konsti'
 
 logging.basicConfig(level=logging.DEBUG)
 

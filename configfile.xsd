@@ -13,8 +13,6 @@
         <xs:complexType>
             <xs:attribute name="global" type="xs:string"/>
             <xs:attribute name="local" type="xs:string"/>
-            <!--True if this is the Owner of this Folder i.e. the folder is local-->
-            <xs:attribute name="mine" type="xs:boolean"/>
         </xs:complexType>
     </xs:element>
 
