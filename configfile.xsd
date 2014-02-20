@@ -9,7 +9,6 @@
     <xs:attribute name="interval" type="xs:unsignedInt"/>
 
 
-    <!-- Part Configurations :-->
     <xs:element name="folder">
         <xs:complexType>
             <xs:attribute name="global" type="xs:string"/>
@@ -19,6 +18,7 @@
         </xs:complexType>
     </xs:element>
 
+    <!-- Part Configurations :-->
     <xs:element name="hasher">
         <xs:complexType>
             <xs:attribute name="processes" type="xs:unsignedInt"/>
@@ -27,7 +27,18 @@
 
     <xs:element name="scanner">
         <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="folder" minOccurs="1" maxOccurs="1"/>
+            </xs:sequence>
             <xs:attribute ref="interval"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="server">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="folder" minOccurs="1" maxOccurs="1"/>
+            </xs:sequence>
         </xs:complexType>
     </xs:element>
 
@@ -35,8 +46,9 @@
     <xs:element name="Host">
         <xs:complexType>
             <xs:sequence>
-                <xs:element ref="folder" minOccurs="0" maxOccurs="unbounded"/>
                 <xs:element ref="hasher" minOccurs="0" maxOccurs="1"/>
+                <xs:element ref="scanner" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element ref="server" minOccurs="0" maxOccurs="unbounded"/>
             </xs:sequence>
             <xs:attribute name="hostname" ref="hostname"/>
             <xs:attribute name="region" ref="region"/>
