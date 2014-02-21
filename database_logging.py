@@ -5,6 +5,7 @@ Defines the Database logging
 import logging
 import socket
 import traceback
+import database
 
 __author__ = 'konsti'
 
@@ -16,6 +17,15 @@ from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
 DBSession = None
+
+
+def configure_logger():
+    """
+    Sets up the Python logger creates a DatabaseLogger that logs to the database.
+    """
+    global DBSession
+    DBSession = database.get_session()
+    logging.basicConfig(level=logging.DEBUG, handlers=(SQLAlchemyHandler(), logging.StreamHandler()))
 
 
 class Log(Base):
@@ -60,15 +70,14 @@ class SQLAlchemyHandler(logging.Handler):
         trace = None
         exc = record.__dict__['exc_info']
         if exc:
-            trace = traceback.fromat_exc(exc)
+            trace = traceback.format_exc(exc)
         log = Log(
-            logger=record.__dict__['name'],
-            level=record.__dict__['levelname'],
+            logger=record.name,
+            level=record.levelname,
             trace=trace,
-            msg=record.__dict__['msg'])
+            msg=record.getMessage())
         DBSession.add(log)
-        if log.level == 'ERROR':
-            DBSession.commit()
+        DBSession.commit()
 
     def __del__(self):
         DBSession.commit()
