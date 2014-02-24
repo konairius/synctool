@@ -27,6 +27,7 @@ def run(configfile):
         loop.call_soon(role)
     logger.debug('run() is done!')
 
+
 def main(args=sys.argv[1:]):
     """
     main :)

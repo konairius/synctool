@@ -2,7 +2,7 @@
 """
 The Base Module where all Classes used by multiple Daemons are specified
 """
-from html.parser import HTMLParser
+import html
 import os
 import socket
 
@@ -435,5 +435,5 @@ def restore_utf8(string):
     @param string: a String with encoded with 'xmlcharrefreplace'
     @return: The Original UTF-8 String
     """
-    parser = HTMLParser()
-    return parser.unescape(string)
+    #parser = HTMLParser()
+    return html.unescape(string)

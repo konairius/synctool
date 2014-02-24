@@ -3,7 +3,9 @@
 This module contains the static methods for parsing the XML Configfile
 """
 from functools import partial
-from time import sleep
+from base import Folder
+import hasher
+import scanner
 
 __author__ = 'konsti'
 
@@ -17,4 +19,15 @@ def get_roles(configfile):
     @param configfile: The Path of the xml configfile
     @return a callable that creates the described role
     """
-    return [partial(sleep, 10000), ]
+    #TODO: Dummy Implementation
+
+    roles = list()
+    roles.append(partial(hasher.run, 3, 120))
+
+
+    folder = Folder
+    roles.append(partial(scanner.run, 3, 120))
+
+    print(roles)
+
+    return roles

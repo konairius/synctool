@@ -6,16 +6,14 @@ looks in the database if there is something to do,
 """
 from _md5 import md5
 import argparse
+import asyncio
 import logging
-from multiprocessing import Pool
-import os
 import socket
 import sys
-from time import sleep
 
-from sqlalchemy import create_engine, and_, func
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import and_, func
 
+import database
 from base import HashRequest, File, fix_encoding, Host, Region
 
 
@@ -50,12 +48,11 @@ def calculate_hash(ip, port, server_id):
     return _hash.hexdigest()
 
 
-def get_request(session_maker):
+def get_request():
     """
-    @param session_maker: The SQLAlchemy Session Maker
     @return: a random request guarantied to be locked and unique
     """
-    session = session_maker()
+    session = database.get_session()
     me = Host.by_name(socket.gethostname(), session)
     if me.region is not None:
         # noinspection PyComparisonWithNone,PyPep8
@@ -82,16 +79,21 @@ def get_request(session_maker):
         session.close()
 
 
-def work(session_maker):
+def work(interval):
     """
     This is where the work is done
-    @param session_maker: The SQLAlchemy Session Maker
+    @param interval: The interval between two calls if there are no request
     """
-    request = get_request(session_maker)
-    session = session_maker()
+    logger.debug('Worker Running!')
+    loop = asyncio.get_event_loop()
+    session = database.get_session()
+    request = get_request()
     if request is None:
+        loop.call_later(interval, work, interval)
+        logger.debug('Waiting for Request, check again in %s seconds.' % interval)
         return False
     try:
+        logger.info('Calculating Hash for: %s' % request)
         request = session.merge(request)
         fhash = calculate_hash(request.server.ip, request.server.port, request.server.id)
 
@@ -106,20 +108,20 @@ def work(session_maker):
         logger.exception(e)
         session.rollback()
 
+    loop.call_soon(work, interval)
     return True
 
 
-def daemon(args):
-    """
-    @param args: Args namespace as returned by argparse
-    """
+def run(number, interval):
 
-    database = create_engine(args.database, echo=False)
-    session_maker = sessionmaker(bind=database)
-    while True:
-        logger.debug('New Hashing run of: %s', (os.getpid()))
-        if not work(session_maker):
-            sleep(args.interval)
+    """
+    @param number: Number of Processes to spawn
+    @param interval: Time to wait between checking for new Requests
+    """
+    logger.debug('Hasher running with:(number:%s, interval:%s)' % (number, interval))
+    loop = asyncio.get_event_loop()
+    for _ in range(number):
+        loop.call_soon(work, interval)
 
 
 def main(args=sys.argv[1:]):
@@ -139,13 +141,6 @@ def main(args=sys.argv[1:]):
         logger.debug('Hasher started with following arguments: %s' % args)
     else:
         logging.basicConfig(level=logging.INFO)
-
-    with Pool(processes=args.number) as pool:
-        for _ in range(args.number):
-            pool.apply_async(daemon, args=(args,))
-        pool.close()
-        pool.join()
-
 
 if __name__ == '__main__':
     exit(main())
