@@ -322,6 +322,10 @@ class Folder(Base, FilesystemObject):
             obj = session.query(Folder).filter(
                 and_(Folder.name == name, Folder.parent_id == self.id)).with_lockmode(None).first()
 
+        if None is obj:
+            obj = session.query(HashRequest).filter(
+                and_(HashRequest.name == name, HashRequest.folder_id == self.id)).with_lockmode(None).first()
+
         if obj is not None:
             logger.debug('Restored Object from Database: %r' % obj)
         else:
