@@ -2,6 +2,7 @@
 """
 Defines the Database logging
 """
+import asyncio
 import logging
 import socket
 import traceback
@@ -30,6 +31,14 @@ def configure_logger():
     logging.basicConfig(level=logging.DEBUG, handlers=(SQLAlchemyHandler(), logging.StreamHandler()))
 
 
+@asyncio.coroutine
+def commit():
+    """
+    Coroutine, commits the DBSession
+    """
+    DBSession.commit()
+
+
 class Log(Base):
     """
 
@@ -47,11 +56,12 @@ class Log(Base):
     msg = Column(String)  # any custom log you may have included
     created_at = Column(DateTime, default=func.now())  # the current timestamp
 
-    def __init__(self, logger=None, level=None, trace=None, msg=None):
+    def __init__(self, logger=None, level=None, trace=None, msg=None, created_at=None):
         self.logger = logger
         self.level = level
         self.trace = trace
         self.msg = msg
+        self.created_at = created_at
 
     def __unicode__(self):
         return self.__repr__()
@@ -72,7 +82,7 @@ class SQLAlchemyHandler(logging.Handler):
         trace = None
         exc = record.__dict__['exc_info']
         if exc:
-            trace = traceback.format_exc()
+            trace = traceback.format_exc(record.exc_info)
         log = Log(
             logger=record.name,
             level=record.levelname,
@@ -80,6 +90,7 @@ class SQLAlchemyHandler(logging.Handler):
             msg=record.getMessage())
         DBSession.add(log)
         DBSession.commit()
+        #asyncio.async(commit())
 
     def __del__(self):
         DBSession.commit()
