@@ -5,7 +5,9 @@ Defines the Database logging
 import logging
 import socket
 import traceback
+
 import database
+
 
 __author__ = 'konsti'
 
@@ -70,7 +72,7 @@ class SQLAlchemyHandler(logging.Handler):
         trace = None
         exc = record.__dict__['exc_info']
         if exc:
-            trace = traceback.format_exc(exc)
+            trace = traceback.format_exc()
         log = Log(
             logger=record.name,
             level=record.levelname,
