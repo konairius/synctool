@@ -14,6 +14,8 @@ DATABASE_STRING = None
 
 _DATABASE = None
 
+GLOBAL_SESSION = None
+
 
 def get_database():
     """
@@ -35,3 +37,14 @@ def get_session():
     """
     session_maker = sqlalchemy.orm.sessionmaker(bind=get_database())
     return session_maker()
+
+
+def get_global_session():
+    """
+    @return: A globally shared Session
+    """
+    global GLOBAL_SESSION
+    if None is GLOBAL_SESSION:
+        GLOBAL_SESSION = get_session()
+
+    return GLOBAL_SESSION
