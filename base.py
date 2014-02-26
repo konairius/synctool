@@ -300,9 +300,14 @@ class Folder(Base, FilesystemObject):
         @param name: the name of the File
         @return: the new created File
         """
-        file = File(folder=self, name=name, hash=fhash, mtime=mtime, size=size, host=self.host)
-        logger.debug('Created new Object: %r' % file)
-        return file
+        if fhash is None:
+            request = HashRequest(folder=self, name=name, mtime=mtime, size=size, host=self.host)
+            logger.debug('Created Hash Request for %s' % request)
+            return request
+        else:
+            file = File(folder=self, name=name, hash=fhash, mtime=mtime, size=size, host=self.host)
+            logger.debug('Created new Object: %r' % file)
+            return file
 
     # noinspection PyUnusedLocal
     def child_by_name(self, name, session, eager=False):
