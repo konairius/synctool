@@ -3,9 +3,16 @@
 Defines the Database logging
 """
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 import logging
+import logging.handlers
+from multiprocessing.context import Process
+import pickle
 import socket
+import socketserver
 import traceback
+import struct
 
 import database
 
@@ -21,14 +28,30 @@ Base = declarative_base()
 
 DBSession = None
 
+LOGGING_POOL = None
+
+
+def start_logging_process():
+    """
+    Starts the logging Process that does the database Logging
+    """
+    tcpserver = LoggingSocketReceiver()
+    process = Process(target=tcpserver.serve_until_stopped)
+    process.start()
+    return process
+
 
 def configure_logger():
     """
     Sets up the Python logger creates a DatabaseLogger that logs to the database.
     """
-    global DBSession
-    DBSession = database.get_session()
-    logging.basicConfig(level=logging.DEBUG, handlers=(SQLAlchemyHandler(), logging.StreamHandler()))
+    global DBSession, LOGGING_POOL
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+    socket_handler = logging.handlers.SocketHandler('localhost',
+                                                    logging.handlers.DEFAULT_TCP_LOGGING_PORT)
+    root_logger.addHandler(socket_handler)
+    logging.info('Logging Started!')
 
 
 @asyncio.coroutine
@@ -77,20 +100,118 @@ class SQLAlchemyHandler(logging.Handler):
 
     def emit(self, record):
         """
-        @param record: logging.Record
+        @param record: Asynchronously emits logging records
         """
-        trace = None
         exc = record.__dict__['exc_info']
-        if exc:
-            trace = traceback.format_exc(record.exc_info)
+        try:
+            trace = traceback.format_exc(exc)
+        except AttributeError:
+            trace = None
+
+        #record = logging.LogRecord()
         log = Log(
             logger=record.name,
             level=record.levelname,
             trace=trace,
-            msg=record.getMessage())
+            msg=record.getMessage(),
+            created_at=datetime.fromtimestamp(record.created))
         DBSession.add(log)
         DBSession.commit()
-        #asyncio.async(commit())
+        #LOGGING_POOL.submit(self._handle, log)
 
-    def __del__(self):
+    @staticmethod
+    def _handle(log):
+        """
+        @param log: Log
+        """
+        DBSession.add(log)
         DBSession.commit()
+
+    def flush(self):
+        """
+            Commits the log to the database
+        """
+        DBSession.commit()
+
+
+class LogRecordStreamHandler(socketserver.StreamRequestHandler):
+    """Handler for a streaming logging request.
+
+    This basically logs the record using whatever logging policy is
+    configured locally.
+    """
+
+    def handle(self):
+        """
+        Handle multiple requests - each expected to be a 4-byte length,
+        followed by the LogRecord in pickle format. Logs the record
+        according to whatever policy is configured locally.
+        """
+        while True:
+            chunk = self.connection.recv(4)
+            if len(chunk) < 4:
+                break
+            slen = struct.unpack('>L', chunk)[0]
+            chunk = self.connection.recv(slen)
+            while len(chunk) < slen:
+                chunk = chunk + self.connection.recv(slen - len(chunk))
+            obj = self.unpickle(chunk)
+            record = logging.makeLogRecord(obj)
+            self.handle_log_record(record)
+
+    @staticmethod
+    def unpickle(data):
+        """
+        @param data: the data received from socket
+        @return: the unpacked data structure
+        """
+        return pickle.loads(data)
+
+    def handle_log_record(self, record):
+        """
+        @param record: logging.LogRecord
+        """
+        if self.server.logname is not None:
+            name = self.server.logname
+        else:
+            name = record.name
+
+        logger = logging.getLogger(name)
+        logger.handle(record)
+
+
+class LoggingSocketReceiver(socketserver.ThreadingTCPServer):
+    """
+    Simple TCP socket-based logging receiver suitable for testing.
+    """
+
+    allow_reuse_address = 1
+
+    def __init__(self, host='localhost',
+                 port=logging.handlers.DEFAULT_TCP_LOGGING_PORT,
+                 handler=LogRecordStreamHandler):
+
+        socketserver.ThreadingTCPServer.__init__(self, (host, port), handler)
+        self.abort = 0
+        self.timeout = 1
+        self.logname = None
+
+    def serve_until_stopped(self):
+
+        """
+        Does at it says
+        """
+        import select
+
+        global LOGGING_POOL, DBSession
+        logging.basicConfig(handlers=(logging.StreamHandler(), SQLAlchemyHandler()))
+        LOGGING_POOL = ThreadPoolExecutor(max_workers=4)
+        DBSession = database.get_session()
+
+        abort = 0
+        while not abort:
+            rd, wr, ex = select.select([self.socket.fileno()], [], [],
+                                       self.timeout)
+            if rd:
+                self.handle_request()
+            abort = self.abort
