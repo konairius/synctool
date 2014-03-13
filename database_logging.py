@@ -3,7 +3,6 @@
 Defines the Database logging
 """
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import logging
 import logging.handlers
@@ -50,7 +49,9 @@ def configure_logger():
     root_logger.setLevel(logging.DEBUG)
     socket_handler = logging.handlers.SocketHandler('localhost',
                                                     logging.handlers.DEFAULT_TCP_LOGGING_PORT)
-    root_logger.addHandler(socket_handler)
+
+    logging.basicConfig(handlers=(socket_handler, logging.StreamHandler()))
+    #root_logger.addHandler(socket_handler)
     logging.info('Logging Started!')
 
 
@@ -203,9 +204,8 @@ class LoggingSocketReceiver(socketserver.ThreadingTCPServer):
         """
         import select
 
-        global LOGGING_POOL, DBSession
-        logging.basicConfig(handlers=(logging.StreamHandler(), SQLAlchemyHandler()))
-        LOGGING_POOL = ThreadPoolExecutor(max_workers=4)
+        global DBSession
+        logging.basicConfig(handlers=(SQLAlchemyHandler(), ))
         DBSession = database.get_session()
 
         abort = 0
