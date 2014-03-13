@@ -61,8 +61,8 @@ class FilesystemObject(DBObject):
     Baseclass for Filesystem Objects(Folder, File)
     """
 
-    @classmethod
-    def by_uri(cls, uri, session):
+    @staticmethod
+    def by_uri(uri, session):
         """
         @param uri: <hostname>::<path>
         @param session: The Session used for Querying
@@ -309,7 +309,6 @@ class Folder(Base, FilesystemObject):
             logger.debug('Created new Object: %r' % file)
             return file
 
-    # noinspection PyUnusedLocal
     def child_by_name(self, name, session, eager=False):
         """
         @param session: The Session used for Querying
@@ -327,7 +326,7 @@ class Folder(Base, FilesystemObject):
                 and_(HashRequest.name == name, HashRequest.folder_id == self.id)).with_lockmode(None).first()
 
         if obj is not None:
-            logger.debug('Restored Object from Database: %r' % obj)
+            pass  # logger.debug('Restored Object from Database: %r' % obj)
         else:
             logger.debug('Failed to find object with name: %s' % name)
 
