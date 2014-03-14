@@ -245,7 +245,7 @@ class Folder(Base, FilesystemObject):
 
     parent_id = Column(Integer, ForeignKey('folder.id'))
     parent = relationship('Folder', remote_side=[id, host_id], backref=backref('folders', lazy='subquery'),
-                          cascade='all', lazy='subquery')
+                          cascade='all, delete', lazy='subquery')
 
     @property
     def path(self):
@@ -350,7 +350,7 @@ class File(Base, FilesystemObject):
     host = relationship('Host')
 
     folder_id = Column(Integer, ForeignKey('folder.id'), nullable=False)
-    folder = relationship('Folder', backref=backref('files', lazy='subquery'), lazy='subquery')
+    folder = relationship('Folder', backref=backref('files', lazy='subquery', cascade='all, delete'), lazy='subquery')
 
     @property
     def path(self):
@@ -396,7 +396,7 @@ class HashRequest(Base, DBObject):
     size = Column(BigInteger, nullable=False)
 
     host_id = Column(Integer, ForeignKey('host.id'), nullable=False)
-    host = relationship('Host', backref=backref('requests'))
+    host = relationship('Host', backref=backref('requests', cascade='all, delete'))
 
     folder_id = Column(Integer, ForeignKey('folder.id'), nullable=False)
     folder = relationship('Folder')
