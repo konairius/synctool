@@ -4,10 +4,13 @@ Main Module, creates eventloop parses config and so on...
 """
 import argparse
 import asyncio
+from multiprocessing.context import Process
 import sys
+
 import config
 import database
 import database_logging
+
 
 __author__ = 'konsti'
 
@@ -22,9 +25,10 @@ def run(configfile):
     @param configfile: Path referring to the xml configfile.
     """
     logger.debug('run() method started!')
-    loop = asyncio.get_event_loop()
     for role in config.get_roles(configfile):
-        loop.call_soon(role)
+        process = Process(target=role)
+        print('Starting Process!')
+        process.start()
     logger.debug('run() is done!')
 
 
@@ -41,7 +45,7 @@ def main(args=sys.argv[1:]):
     args = parser.parse_args(args)
 
     database.DATABASE_STRING = args.database
-
+    database_logging.start_logging_process()
     database_logging.configure_logger()
 
     loop = asyncio.get_event_loop()
