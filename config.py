@@ -4,7 +4,7 @@ This module contains the static methods for parsing the XML Configfile
 """
 from functools import partial
 
-from base import Host
+from base import Folder
 import scanner
 import database
 
@@ -30,12 +30,14 @@ def get_roles(configfile):
 
     session = database.get_global_session()
 
-    host = Host.by_name('konsti-desktop', database.get_global_session())
+    #host = Host.by_name('konsti-desktop', database.get_global_session())
     #folder = host.add_root('/media/konsti/Storage/makeMKV', database.get_global_session())
-    folder = host.add_root('/home/konsti/Code', database.get_global_session())
-    session.add(host)
-    session.add(folder)
-    roles.append(partial(scanner.run, folder, 15))
+    #folder = host.add_root('/home/konsti/Code', database.get_global_session())
+    folder = Folder.by_uri('konsti-desktop::/home/konsti/Code', session)
+    #session.add(host)
+    #session.add(folder)
+    #session.commit()
+    roles.append(partial(scanner.run, folder, 300))
 
     print(roles)
 
